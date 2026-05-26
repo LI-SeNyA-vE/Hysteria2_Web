@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -15,6 +16,8 @@ import (
 	"hysteria2-web/internal/domain/server"
 	"hysteria2-web/internal/domain/user"
 )
+
+var errCancelled = errors.New("cancelled")
 
 func RunInteractive() {
 	db := config.EnvOrDefault("DB_PATH", "./panel.db")
@@ -107,9 +110,28 @@ func readLine(reader *bufio.Reader, prompt string) string {
 	return strings.TrimSpace(line)
 }
 
+func isCancel(s string) bool {
+	return s == "0"
+}
+
+func printCancelled() {
+	fmt.Println("Отменено.")
+}
+
+func finishOrCancel(err error) error {
+	if errors.Is(err, errCancelled) {
+		printCancelled()
+		return nil
+	}
+	return err
+}
+
 func readRequired(reader *bufio.Reader, prompt string) (string, error) {
 	for {
-		v := readLine(reader, prompt)
+		v := readLine(reader, prompt+cancelHint)
+		if isCancel(v) {
+			return "", errCancelled
+		}
 		if v != "" {
 			return v, nil
 		}
@@ -117,9 +139,16 @@ func readRequired(reader *bufio.Reader, prompt string) (string, error) {
 	}
 }
 
-func readInt(reader *bufio.Reader, prompt string, defaultVal int) (int, error) {
+func readInt(reader *bufio.Reader, prompt string, defaultVal int, allowCancel bool) (int, error) {
+	hint := ""
+	if allowCancel {
+		hint = cancelHint
+	}
 	for {
-		raw := readLine(reader, prompt)
+		raw := readLine(reader, prompt+hint)
+		if allowCancel && isCancel(raw) {
+			return 0, errCancelled
+		}
 		if raw == "" && defaultVal >= 0 {
 			return defaultVal, nil
 		}
@@ -131,6 +160,8 @@ func readInt(reader *bufio.Reader, prompt string, defaultVal int) (int, error) {
 		return n, nil
 	}
 }
+
+const cancelHint = " (0 — отмена)"
 
 func printServers(servers []server.Server) {
 	if len(servers) == 0 {
@@ -177,19 +208,23 @@ func pickServer(reader *bufio.Reader, a *app.App, ctx context.Context) (uint, er
 	}
 
 	fmt.Println("Серверы:")
+	fmt.Println("  0. Отмена")
 	for i, s := range servers {
 		fmt.Printf("  %d. [%d] %s\n", i+1, s.ID, s.Name)
 	}
 
 	for {
-		idx, err := readInt(reader, "Выберите номер сервера: ", -1)
+		idx, err := readInt(reader, "Выберите номер сервера: ", -1, true)
 		if err != nil {
 			return 0, err
+		}
+		if idx == 0 {
+			return 0, errCancelled
 		}
 		if idx >= 1 && idx <= len(servers) {
 			return servers[idx-1].ID, nil
 		}
-		fmt.Printf("Введите число от 1 до %d.\n", len(servers))
+		fmt.Printf("Введите 0 для отмены или число от 1 до %d.\n", len(servers))
 	}
 }
 
@@ -205,15 +240,15 @@ func interactiveListServers(a *app.App, ctx context.Context) error {
 func interactiveAddServer(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	name, err := readRequired(reader, "Имя сервера: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	url, err := readRequired(reader, "Blitz URL (с path prefix): ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	key, err := readRequired(reader, "API Key: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 
 	srv, err := a.ServerSvc.CreateServer(ctx, name, url, key)
@@ -227,11 +262,15 @@ func interactiveAddServer(reader *bufio.Reader, a *app.App, ctx context.Context)
 func interactiveDeleteServer(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	id, err := pickServer(reader, a, ctx)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
-	confirm := strings.ToLower(readLine(reader, "Удалить сервер? (y/n): "))
+	confirm := strings.ToLower(readLine(reader, "Удалить сервер? (y/n, 0 — отмена): "))
+	if isCancel(confirm) {
+		printCancelled()
+		return nil
+	}
 	if confirm != "y" && confirm != "yes" && confirm != "д" && confirm != "да" {
-		fmt.Println("Отменено.")
+		printCancelled()
 		return nil
 	}
 	if err := a.ServerSvc.DeleteServer(ctx, id); err != nil {
@@ -244,7 +283,7 @@ func interactiveDeleteServer(reader *bufio.Reader, a *app.App, ctx context.Conte
 func interactiveServerStatus(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	id, err := pickServer(reader, a, ctx)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	client, err := a.ServerSvc.GetClient(id)
 	if err != nil {
@@ -274,23 +313,26 @@ func interactiveListUsers(a *app.App) error {
 func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	serverID, err := pickServer(reader, a, ctx)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	username, err := readRequired(reader, "Username: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	password, err := readRequired(reader, "Password: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
-	limit, err := readInt(reader, "Лимит трафика (GB): ", 0)
-	if err != nil || limit <= 0 {
+	limit, err := readInt(reader, "Лимит трафика (GB): ", 0, true)
+	if err != nil {
+		return finishOrCancel(err)
+	}
+	if limit <= 0 {
 		return fmt.Errorf("лимит должен быть > 0")
 	}
-	days, err := readInt(reader, "Срок (дней) [30]: ", 30)
+	days, err := readInt(reader, "Срок (дней) [30]: ", 30, true)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 
 	if err := a.BlitzSvc.AddUser(ctx, serverID, username, password, limit, days); err != nil {
@@ -303,11 +345,20 @@ func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) e
 func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	serverID, err := pickServer(reader, a, ctx)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	username, err := readRequired(reader, "Username: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
+	}
+	confirm := strings.ToLower(readLine(reader, "Kick пользователя? (y/n, 0 — отмена): "))
+	if isCancel(confirm) {
+		printCancelled()
+		return nil
+	}
+	if confirm != "y" && confirm != "yes" && confirm != "д" && confirm != "да" {
+		printCancelled()
+		return nil
 	}
 	if err := a.BlitzSvc.KickUser(ctx, serverID, username); err != nil {
 		return err
@@ -319,11 +370,11 @@ func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) 
 func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	serverID, err := pickServer(reader, a, ctx)
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	username, err := readRequired(reader, "Username: ")
 	if err != nil {
-		return err
+		return finishOrCancel(err)
 	}
 	client, err := a.ServerSvc.GetClient(serverID)
 	if err != nil {
@@ -354,9 +405,13 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	fmt.Println("  1. Все серверы")
 	fmt.Println("  2. Один сервер")
+	fmt.Println("  0. Отмена")
 	choice := readLine(reader, "Выберите: ")
 
 	switch choice {
+	case "0":
+		printCancelled()
+		return nil
 	case "1":
 		if err := a.BlitzSvc.SyncTraffic(ctx); err != nil {
 			return err
@@ -365,7 +420,7 @@ func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) erro
 	case "2":
 		id, err := pickServer(reader, a, ctx)
 		if err != nil {
-			return err
+			return finishOrCancel(err)
 		}
 		if err := a.BlitzSvc.SyncTrafficForServer(ctx, id); err != nil {
 			return err
