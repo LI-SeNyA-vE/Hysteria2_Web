@@ -36,6 +36,14 @@ func (r *UserRepository) GetByUsername(serverID uint, username string) (*user.Us
 	return &u, nil
 }
 
+func (r *UserRepository) ListAll() ([]user.User, error) {
+	var users []user.User
+	if err := r.db.Order("server_id asc, username asc").Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return users, nil
+}
+
 func (r *UserRepository) ListActive() ([]user.User, error) {
 	var users []user.User
 	if err := r.db.Where("is_active = ?", true).Find(&users).Error; err != nil {

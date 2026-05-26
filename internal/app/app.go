@@ -1,0 +1,71 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"hysteria2-web/internal/blitz"
+	"hysteria2-web/internal/config"
+	"hysteria2-web/internal/domain/server"
+	"hysteria2-web/internal/domain/user"
+	"hysteria2-web/internal/repository"
+	"hysteria2-web/internal/service"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+type App struct {
+	DB         *gorm.DB
+	ServerSvc  *service.ServerService
+	BlitzSvc   *service.BlitzService
+	ServerRepo *repository.ServerRepository
+	UserRepo   *repository.UserRepository
+}
+
+func Open(dbPath string) (*App, error) {
+	if dbPath == "" {
+		dbPath = config.EnvOrDefault("DB_PATH", "./panel.db")
+	}
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	if err := db.AutoMigrate(&server.Server{}, &user.User{}); err != nil {
+		return nil, fmt.Errorf("migrate database: %w", err)
+	}
+
+	serverRepo := repository.NewServerRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	registry := blitz.NewRegistry()
+
+	serverSvc := service.NewServerService(serverRepo, registry)
+	blitzSvc := service.NewBlitzService(registry, userRepo, nil)
+
+	if err := serverSvc.LoadRegistry(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return &App{
+		DB:         db,
+		ServerSvc:  serverSvc,
+		BlitzSvc:   blitzSvc,
+		ServerRepo: serverRepo,
+		UserRepo:   userRepo,
+	}, nil
+}
+
+func (a *App) Close() error {
+	sqlDB, err := a.DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
+func DBPathFlag() string {
+	return os.Getenv("DB_PATH")
+}

@@ -38,3 +38,7 @@ func envOrDefault(key, fallback string) string {
 	}
 	return fallback
 }
+
+func EnvOrDefault(key, fallback string) string {
+	return envOrDefault(key, fallback)
+}
