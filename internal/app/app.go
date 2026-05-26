@@ -14,6 +14,8 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"log/slog"
 )
 
 type App struct {
@@ -25,11 +27,17 @@ type App struct {
 }
 
 func Open(dbPath string) (*App, error) {
+	return OpenWithLogger(dbPath, nil)
+}
+
+func OpenWithLogger(dbPath string, panelLogger *slog.Logger) (*App, error) {
 	if dbPath == "" {
 		dbPath = config.EnvOrDefault("DB_PATH", "./panel.db")
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -43,7 +51,10 @@ func Open(dbPath string) (*App, error) {
 	registry := blitz.NewRegistry()
 
 	serverSvc := service.NewServerService(serverRepo, registry)
-	blitzSvc := service.NewBlitzService(registry, userRepo, nil)
+	if panelLogger == nil {
+		panelLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	}
+	blitzSvc := service.NewBlitzService(registry, userRepo, panelLogger)
 
 	if err := serverSvc.LoadRegistry(context.Background()); err != nil {
 		return nil, err

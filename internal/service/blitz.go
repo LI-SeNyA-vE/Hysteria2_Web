@@ -37,10 +37,6 @@ func (s *BlitzService) Client(serverID uint) (*blitz.HTTPClient, error) {
 }
 
 func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, password string, trafficLimitGB, expirationDays int) error {
-	if expirationDays <= 0 {
-		expirationDays = 30
-	}
-
 	existing, err := s.repo.GetByUsername(serverID, username)
 	if err != nil {
 		return err
@@ -61,9 +57,21 @@ func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, pas
 		ExpirationDays: expirationDays,
 		Unlimited:      false,
 	}
+	s.logger.Info("blitz add user request",
+		"server_id", serverID,
+		"username", username,
+		"traffic_limit_gb", trafficLimitGB,
+		"expiration_days", expirationDays,
+	)
 	if err := client.AddUser(ctx, req); err != nil {
+		s.logger.Error("blitz add user failed",
+			"server_id", serverID,
+			"username", username,
+			"err", err,
+		)
 		return fmt.Errorf("add user to blitz: %w", err)
 	}
+	s.logger.Info("user added in blitz", "server_id", serverID, "username", username)
 
 	u := &user.User{
 		ServerID:       serverID,
@@ -75,8 +83,14 @@ func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, pas
 		ExpirationDays: expirationDays,
 	}
 	if err := s.repo.Create(u); err != nil {
+		s.logger.Error("persist user failed",
+			"server_id", serverID,
+			"username", username,
+			"err", err,
+		)
 		return fmt.Errorf("persist user: %w", err)
 	}
+	s.logger.Info("user saved locally", "server_id", serverID, "username", username)
 	return nil
 }
 
@@ -172,7 +186,7 @@ func (s *BlitzService) syncTrafficForServer(ctx context.Context, serverID uint, 
 			return fmt.Errorf("update traffic for %s: %w", u.Username, err)
 		}
 
-		if trafficUsed >= u.TrafficLimit {
+		if u.TrafficLimit > 0 && trafficUsed >= u.TrafficLimit {
 			s.logger.Info("traffic limit exceeded, kicking user",
 				"server_id", serverID,
 				"username", u.Username,

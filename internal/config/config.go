@@ -11,6 +11,7 @@ type Config struct {
 	BlitzAPIKey  string
 	DefaultName  string
 	DBPath       string
+	LogPath      string
 	SyncInterval time.Duration
 }
 
@@ -20,6 +21,7 @@ func Load() (Config, error) {
 		BlitzAPIKey:  os.Getenv("BLITZ_API_KEY"),
 		DefaultName:  envOrDefault("DEFAULT_SERVER_NAME", "default"),
 		DBPath:       envOrDefault("DB_PATH", "./panel.db"),
+		LogPath:      envOrDefault("LOG_PATH", "./panel.log"),
 	}
 
 	intervalStr := envOrDefault("SYNC_INTERVAL", "30s")

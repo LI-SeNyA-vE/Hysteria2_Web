@@ -19,9 +19,9 @@ func (c *HTTPClient) ListUsers(ctx context.Context) ([]UserInfo, error) {
 }
 
 func (c *HTTPClient) AddUser(ctx context.Context, req AddUserRequest) error {
-	_, err := c.doDetail(ctx, http.MethodPost, "/api/v1/users/", req, http.StatusCreated)
+	_, err := c.doDetail(ctx, http.MethodPost, "/api/v1/users/", req, 0)
 	if err != nil {
-		return fmt.Errorf("blitz: add user: %w", err)
+		return err
 	}
 	return nil
 }

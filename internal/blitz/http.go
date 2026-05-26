@@ -55,13 +55,21 @@ func (c *HTTPClient) url(path string) string {
 func (c *HTTPClient) do(ctx context.Context, req *http.Request, expectStatus int) (*http.Response, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("blitz: HTTP %s %s: %w", req.Method, req.URL.String(), err)
 	}
-	if resp.StatusCode != expectStatus {
+	if !statusMatches(resp.StatusCode, expectStatus) {
 		defer resp.Body.Close()
 		return nil, c.parseError(resp, req.Method+" "+req.URL.Path)
 	}
 	return resp, nil
+}
+
+// expectStatus: exact code, or 0 to accept any 2xx.
+func statusMatches(code, expectStatus int) bool {
+	if expectStatus == 0 {
+		return code >= 200 && code < 300
+	}
+	return code == expectStatus
 }
 
 func (c *HTTPClient) doJSON(ctx context.Context, method, path string, body any, expectStatus int) (*http.Response, error) {
@@ -93,12 +101,15 @@ func (c *HTTPClient) doNoBody(ctx context.Context, method, path string, expectSt
 
 func (c *HTTPClient) decodeJSON(resp *http.Response, dst any) error {
 	defer resp.Body.Close()
-	if dst == nil {
-		io.Copy(io.Discard, resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("blitz: read response: %w", err)
+	}
+	if dst == nil || len(body) == 0 {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
-		return fmt.Errorf("blitz: decode response: %w", err)
+	if err := json.Unmarshal(body, dst); err != nil {
+		return fmt.Errorf("blitz: decode response: %w (body: %s)", err, strings.TrimSpace(string(body)))
 	}
 	return nil
 }

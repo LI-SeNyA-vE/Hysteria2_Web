@@ -12,11 +12,13 @@ import (
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/domain/server"
 	"hysteria2-web/internal/domain/user"
+	applog "hysteria2-web/internal/log"
 	"hysteria2-web/internal/repository"
 	"hysteria2-web/internal/service"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -25,7 +27,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
+	fileLogger, closeLog, err := applog.Open(cfg.LogPath)
+	if err != nil {
+		log.Fatalf("open log file: %v", err)
+	}
+	defer closeLog.Close()
+	slog.SetDefault(fileLogger)
+
+	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
@@ -39,7 +50,7 @@ func main() {
 	registry := blitz.NewRegistry()
 
 	serverSvc := service.NewServerService(serverRepo, registry)
-	blitzSvc := service.NewBlitzService(registry, userRepo, slog.Default())
+	blitzSvc := service.NewBlitzService(registry, userRepo, fileLogger)
 
 	ctx := context.Background()
 	if err = bootstrapDefaultServer(ctx, cfg, serverSvc, serverRepo); err != nil {
@@ -53,11 +64,11 @@ func main() {
 	defer cancel()
 
 	blitzSvc.StartTrafficSyncWorker(workerCtx, cfg.SyncInterval)
-	slog.Info("traffic sync worker started", "interval", cfg.SyncInterval)
+	fileLogger.Info("traffic sync worker started", "interval", cfg.SyncInterval, "log_path", cfg.LogPath)
 
 	<-waitForShutdown()
 	cancel()
-	slog.Info("shutting down")
+	fileLogger.Info("shutting down")
 }
 
 func bootstrapDefaultServer(ctx context.Context, cfg config.Config, serverSvc *service.ServerService, serverRepo server.Repository) error {
