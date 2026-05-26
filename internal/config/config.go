@@ -9,6 +9,7 @@ import (
 type Config struct {
 	BlitzBaseURL string
 	BlitzAPIKey  string
+	DefaultName  string
 	DBPath       string
 	SyncInterval time.Duration
 }
@@ -17,14 +18,8 @@ func Load() (Config, error) {
 	cfg := Config{
 		BlitzBaseURL: os.Getenv("BLITZ_BASE_URL"),
 		BlitzAPIKey:  os.Getenv("BLITZ_API_KEY"),
+		DefaultName:  envOrDefault("DEFAULT_SERVER_NAME", "default"),
 		DBPath:       envOrDefault("DB_PATH", "./panel.db"),
-	}
-
-	if cfg.BlitzBaseURL == "" {
-		return Config{}, fmt.Errorf("BLITZ_BASE_URL is required")
-	}
-	if cfg.BlitzAPIKey == "" {
-		return Config{}, fmt.Errorf("BLITZ_API_KEY is required")
 	}
 
 	intervalStr := envOrDefault("SYNC_INTERVAL", "30s")

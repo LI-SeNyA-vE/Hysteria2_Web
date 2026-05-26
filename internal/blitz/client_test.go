@@ -3,6 +3,7 @@ package blitz_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -82,11 +83,8 @@ func TestRemoveUserNotFound(t *testing.T) {
 
 	client := blitz.NewClient(srv.URL, "test-key")
 	err := client.RemoveUser(context.Background(), "missing")
-	if err == nil {
-		t.Fatal("expected error for not found user")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Fatalf("error = %v, want not found", err)
+	if !errors.Is(err, blitz.ErrNotFound) {
+		t.Fatalf("error = %v, want ErrNotFound", err)
 	}
 }
 
@@ -118,5 +116,77 @@ func TestListUsers(t *testing.T) {
 	}
 	if len(users) != 1 || users[0].Username != "alice" {
 		t.Fatalf("unexpected users: %+v", users)
+	}
+}
+
+func TestGetServerStatus(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/server/status" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{
+			Uptime:      "1h",
+			OnlineUsers: 3,
+		})
+	}))
+	defer srv.Close()
+
+	client := blitz.NewClient(srv.URL, "test-key")
+	status, err := client.GetServerStatus(context.Background())
+	if err != nil {
+		t.Fatalf("GetServerStatus() error = %v", err)
+	}
+	if status.OnlineUsers != 3 {
+		t.Fatalf("online users = %d, want 3", status.OnlineUsers)
+	}
+}
+
+func TestGetVersionInfo(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/server/version" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+	}))
+	defer srv.Close()
+
+	client := blitz.NewClient(srv.URL, "test-key")
+	info, err := client.GetVersionInfo(context.Background())
+	if err != nil {
+		t.Fatalf("GetVersionInfo() error = %v", err)
+	}
+	if info.CurrentVersion != "0.2.0" {
+		t.Fatalf("version = %q", info.CurrentVersion)
+	}
+}
+
+func TestAddUserError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(blitz.DetailResponse{Detail: "invalid user"})
+	}))
+	defer srv.Close()
+
+	client := blitz.NewClient(srv.URL, "key")
+	password := "pass"
+	err := client.AddUser(context.Background(), blitz.AddUserRequest{
+		Username:       "alice",
+		Password:       &password,
+		TrafficLimit:   1,
+		ExpirationDays: 1,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "invalid user") {
+		t.Fatalf("error = %v", err)
 	}
 }

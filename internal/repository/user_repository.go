@@ -24,9 +24,9 @@ func (r *UserRepository) Create(u *user.User) error {
 	return nil
 }
 
-func (r *UserRepository) GetByUsername(username string) (*user.User, error) {
+func (r *UserRepository) GetByUsername(serverID uint, username string) (*user.User, error) {
 	var u user.User
-	err := r.db.Where("username = ?", username).First(&u).Error
+	err := r.db.Where("server_id = ? AND username = ?", serverID, username).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -44,9 +44,17 @@ func (r *UserRepository) ListActive() ([]user.User, error) {
 	return users, nil
 }
 
-func (r *UserRepository) Deactivate(username string) error {
+func (r *UserRepository) ListActiveByServer(serverID uint) ([]user.User, error) {
+	var users []user.User
+	if err := r.db.Where("server_id = ? AND is_active = ?", serverID, true).Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("list active users by server: %w", err)
+	}
+	return users, nil
+}
+
+func (r *UserRepository) Deactivate(serverID uint, username string) error {
 	result := r.db.Model(&user.User{}).
-		Where("username = ?", username).
+		Where("server_id = ? AND username = ?", serverID, username).
 		Update("is_active", false)
 	if result.Error != nil {
 		return fmt.Errorf("deactivate user: %w", result.Error)
@@ -54,9 +62,19 @@ func (r *UserRepository) Deactivate(username string) error {
 	return nil
 }
 
-func (r *UserRepository) UpdateTraffic(username string, update user.TrafficUpdate) error {
+func (r *UserRepository) DeactivateAllByServer(serverID uint) error {
+	result := r.db.Model(&user.User{}).
+		Where("server_id = ?", serverID).
+		Update("is_active", false)
+	if result.Error != nil {
+		return fmt.Errorf("deactivate users by server: %w", result.Error)
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateTraffic(serverID uint, username string, update user.TrafficUpdate) error {
 	err := r.db.Model(&user.User{}).
-		Where("username = ?", username).
+		Where("server_id = ? AND username = ?", serverID, username).
 		Updates(map[string]interface{}{
 			"traffic_used":           update.TrafficUsed,
 			"pending_bytes":          update.PendingBytes,

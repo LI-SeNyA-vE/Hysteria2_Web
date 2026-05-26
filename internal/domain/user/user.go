@@ -4,7 +4,8 @@ import "time"
 
 type User struct {
 	ID                  uint   `gorm:"primaryKey"`
-	Username            string `gorm:"uniqueIndex;not null"`
+	ServerID            uint   `gorm:"not null;uniqueIndex:idx_server_username"`
+	Username            string `gorm:"not null;uniqueIndex:idx_server_username"`
 	AuthPassword        string `gorm:"not null"`
 	TrafficLimit        int    `gorm:"not null"`
 	TrafficUsed         int    `gorm:"not null;default:0"`
@@ -24,8 +25,10 @@ type TrafficUpdate struct {
 
 type Repository interface {
 	Create(u *User) error
-	GetByUsername(username string) (*User, error)
+	GetByUsername(serverID uint, username string) (*User, error)
 	ListActive() ([]User, error)
-	Deactivate(username string) error
-	UpdateTraffic(username string, update TrafficUpdate) error
+	ListActiveByServer(serverID uint) ([]User, error)
+	Deactivate(serverID uint, username string) error
+	DeactivateAllByServer(serverID uint) error
+	UpdateTraffic(serverID uint, username string, update TrafficUpdate) error
 }
