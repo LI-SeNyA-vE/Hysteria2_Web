@@ -1,0 +1,69 @@
+package repository
+
+import (
+	"errors"
+	"fmt"
+
+	"hysteria2-web/internal/domain/user"
+
+	"gorm.io/gorm"
+)
+
+type UserRepository struct {
+	db *gorm.DB
+}
+
+func NewUserRepository(db *gorm.DB) *UserRepository {
+	return &UserRepository{db: db}
+}
+
+func (r *UserRepository) Create(u *user.User) error {
+	if err := r.db.Create(u).Error; err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) GetByUsername(username string) (*user.User, error) {
+	var u user.User
+	err := r.db.Where("username = ?", username).First(&u).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user by username: %w", err)
+	}
+	return &u, nil
+}
+
+func (r *UserRepository) ListActive() ([]user.User, error) {
+	var users []user.User
+	if err := r.db.Where("is_active = ?", true).Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("list active users: %w", err)
+	}
+	return users, nil
+}
+
+func (r *UserRepository) Deactivate(username string) error {
+	result := r.db.Model(&user.User{}).
+		Where("username = ?", username).
+		Update("is_active", false)
+	if result.Error != nil {
+		return fmt.Errorf("deactivate user: %w", result.Error)
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateTraffic(username string, update user.TrafficUpdate) error {
+	err := r.db.Model(&user.User{}).
+		Where("username = ?", username).
+		Updates(map[string]interface{}{
+			"traffic_used":           update.TrafficUsed,
+			"pending_bytes":          update.PendingBytes,
+			"last_blitz_total_bytes": update.LastBlitzTotalBytes,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("update traffic: %w", err)
+	}
+	return nil
+}
