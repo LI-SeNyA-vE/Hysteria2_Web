@@ -312,6 +312,7 @@ EOF
 
 PANEL_NGINX_SNIPPET="/etc/nginx/snippets/hysteria2-panel.conf"
 PANEL_NGINX_SITE="/etc/nginx/sites-available/hysteria2-panel.conf"
+PANEL_CADDY_SNIPPET="/etc/caddy/snippets/hysteria2-panel.caddy"
 
 parse_sub_host() {
     local url="${1:-$PANEL_SUB_DOMAIN}"
@@ -482,46 +483,147 @@ verify_public_health() {
     return 1
 }
 
-install_nginx() {
-    if [[ "${PANEL_SKIP_NGINX:-0}" == "1" ]]; then
-        log_warning "PANEL_SKIP_NGINX=1 — nginx пропущен"
+who_listens_443() {
+    local line
+    line="$(ss -tlnp 2>/dev/null | grep ':443' | head -1 || true)"
+    [[ -z "$line" ]] && return 0
+    if [[ "$line" == *caddy* ]]; then
+        echo "caddy"
+    elif [[ "$line" == *nginx* ]]; then
+        echo "nginx"
+    else
+        echo "other"
+    fi
+}
+
+write_caddy_snippet() {
+    local upstream
+    upstream="$(panel_upstream)"
+    log_info "Caddy snippet → ${PANEL_CADDY_SNIPPET}"
+
+    mkdir -p /etc/caddy/snippets
+    cat >"${PANEL_CADDY_SNIPPET}" <<EOF
+# Hysteria2 VPN Panel — подписки (install.sh)
+handle /${PANEL_SUB_PATH}/* {
+    reverse_proxy http://${upstream}
+}
+handle /healthz {
+    reverse_proxy http://${upstream}/healthz
+}
+EOF
+    log_success "Caddy snippet записан"
+}
+
+find_caddyfile_for_host() {
+    local host="$1"
+    local f found=""
+    for f in /etc/caddy/Caddyfile /etc/caddy/Caddyfile.d/* /etc/caddy/conf.d/*; do
+        [[ -f "$f" ]] || continue
+        if grep -qF "$host" "$f" 2>/dev/null; then
+            echo "$f"
+            return 0
+        fi
+    done
+    found="$(grep -rlF "$host" /etc/caddy/ 2>/dev/null | head -1 || true)"
+    [[ -n "$found" ]] && echo "$found"
+}
+
+merge_caddy_snippet() {
+    local host="$1"
+    local host_re cf import_line
+    host_re="$(escape_regex "$host")"
+    cf="$(find_caddyfile_for_host "$host")"
+    [[ -n "$cf" && -f "$cf" ]] || return 1
+
+    if grep -qF "${PANEL_CADDY_SNIPPET}" "$cf" 2>/dev/null; then
+        log_info "Caddy snippet уже подключён в ${cf}"
         return 0
     fi
 
-    if [[ -z "${PANEL_SUB_DOMAIN}" ]]; then
-        log_warning "PANEL_SUB_DOMAIN пуст — nginx не настраиваем (задайте домен и переустановите)"
+    cp -a "$cf" "${cf}.bak.hysteria2-panel"
+    import_line="import ${PANEL_CADDY_SNIPPET}"
+    sed -i "/${host_re}[[:space:]]*{/{a\\    ${import_line}
+}" "$cf"
+    log_success "Caddy snippet добавлен в ${cf}"
+    return 0
+}
+
+reload_caddy() {
+    command -v caddy >/dev/null 2>&1 || return 1
+    if [[ -f /etc/caddy/Caddyfile ]]; then
+        caddy validate --config /etc/caddy/Caddyfile
+    fi
+    systemctl reload caddy
+    log_success "caddy перезагружен"
+}
+
+install_caddy_routes() {
+    local host="$1"
+    write_caddy_snippet
+    if merge_caddy_snippet "$host"; then
+        reload_caddy
         return 0
     fi
+    log_warning "Caddyfile для ${host} не найден. В блок site добавьте:"
+    echo "    import ${PANEL_CADDY_SNIPPET};"
+    return 1
+}
 
-    local host
-    host="$(parse_sub_host)"
-    if [[ -z "$host" ]]; then
-        log_warning "Не удалось разобрать домен из PANEL_SUB_DOMAIN=${PANEL_SUB_DOMAIN}"
-        return 0
-    fi
-
-    if [[ "${PANEL_SUB_DOMAIN}" == *":"* ]]; then
-        log_warning "В sub_domain указан порт — nginx настраивает только 443. Используйте домен без порта или правьте nginx вручную."
-    fi
+install_nginx_routes() {
+    local host="$1"
 
     install_nginx_packages || return 0
     write_nginx_snippet
 
     if merge_nginx_snippet "$host"; then
-        log_info "Подключено к существующему nginx (Blitz/другой сайт)"
+        log_info "Nginx: подключено к существующему сайту"
     else
-        log_info "Сайт для ${host} не найден — создаём отдельный vhost"
+        log_info "Nginx: создаём отдельный vhost"
         write_nginx_standalone_site "$host"
     fi
 
     reload_nginx
 
-    if ! nginx_has_ssl_for_host "$host"; then
+    if [[ "$(who_listens_443)" != "caddy" ]] && ! nginx_has_ssl_for_host "$host"; then
         run_certbot "$host" || true
         reload_nginx 2>/dev/null || true
-    else
-        log_info "SSL для ${host} уже есть — certbot пропущен"
     fi
+}
+
+install_web_proxy() {
+    if [[ "${PANEL_SKIP_NGINX:-0}" == "1" ]]; then
+        log_warning "PANEL_SKIP_NGINX=1 — веб-прокси пропущен"
+        return 0
+    fi
+
+    if [[ -z "${PANEL_SUB_DOMAIN}" ]]; then
+        log_warning "PANEL_SUB_DOMAIN пуст — прокси не настраиваем"
+        return 0
+    fi
+
+    local host proxy443
+    host="$(parse_sub_host)"
+    if [[ -z "$host" ]]; then
+        log_warning "Не удалось разобрать домен из ${PANEL_SUB_DOMAIN}"
+        return 0
+    fi
+
+    proxy443="$(who_listens_443)"
+    case "$proxy443" in
+        caddy)
+            log_info "HTTPS на 443: Caddy (Blitz) — добавляем маршруты подписок в Caddy"
+            install_caddy_routes "$host" || true
+            install_nginx_routes "$host" || true
+            ;;
+        nginx|"")
+            log_info "HTTPS на 443: nginx"
+            install_nginx_routes "$host" || true
+            ;;
+        other)
+            log_warning "443 занят не nginx/caddy — настройте /${PANEL_SUB_PATH}/ вручную"
+            install_nginx_routes "$host" || true
+            ;;
+    esac
 
     verify_public_health "$host" || true
 }
@@ -573,7 +675,7 @@ print_summary() {
     else
         log_info "Подписка: ${PANEL_SUB_DOMAIN}/${PANEL_SUB_PATH}/{SubToken}"
         if [[ "${PANEL_SKIP_NGINX:-0}" != "1" ]]; then
-            log_info "Nginx: https://$(parse_sub_host)/healthz  |  /${PANEL_SUB_PATH}/ → panel"
+            log_info "Подписка HTTPS: https://$(parse_sub_host)/${PANEL_SUB_PATH}/  (Caddy или nginx)"
         fi
     fi
     echo
@@ -611,7 +713,7 @@ main() {
     fi
 
     add_alias
-    install_nginx
+    install_web_proxy
     print_summary
     run_menu
 }
