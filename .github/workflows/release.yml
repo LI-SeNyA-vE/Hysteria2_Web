@@ -10,17 +10,10 @@ permissions:
 
 jobs:
   build:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - goarch: amd64
-            runner: ubuntu-latest
-            cc: gcc
-          - goarch: arm64
-            runner: ubuntu-24.04-arm
-            cc: gcc
-
-    runs-on: ${{ matrix.runner }}
+        goarch: [amd64, arm64]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,13 +22,21 @@ jobs:
         with:
           go-version: "1.23"
 
+      - name: Install cross compiler (arm64)
+        if: matrix.goarch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build panel-${{ matrix.goarch }}.zip
         env:
           CGO_ENABLED: "1"
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
-          CC: ${{ matrix.cc }}
         run: |
+          if [ "${{ matrix.goarch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+          else
+            export CC=gcc
+          fi
           go build -trimpath -ldflags="-s -w" -o panel ./cmd/panel/
           zip "panel-${{ matrix.goarch }}.zip" panel
 

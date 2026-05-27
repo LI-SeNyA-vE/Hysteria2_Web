@@ -138,20 +138,12 @@ install_packages() {
 
 install_build_deps() {
     local missing=()
-    for pkg in git gcc golang-go; do
-        if [[ "$pkg" == "golang-go" ]] && command -v go >/dev/null 2>&1; then
-            log_success "go уже установлен: $(go version | awk '{print $3}')"
-            continue
-        fi
-        if [[ "$pkg" != "golang-go" ]] && command -v "${pkg}" >/dev/null 2>&1; then
+    for pkg in git gcc; do
+        if command -v "${pkg}" >/dev/null 2>&1; then
             log_success "${pkg} установлен"
             continue
         fi
-        if [[ "$pkg" == "golang-go" ]]; then
-            missing+=("$pkg")
-        elif ! command -v "$pkg" >/dev/null 2>&1; then
-            missing+=("$pkg")
-        fi
+        missing+=("$pkg")
     done
 
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -160,8 +152,22 @@ install_build_deps() {
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}"
     fi
 
-    command -v go >/dev/null 2>&1 || { log_error "Go не установлен"; exit 1; }
     command -v gcc >/dev/null 2>&1 || { log_error "gcc не установлен (нужен для SQLite)"; exit 1; }
+
+    local go_ver=""
+    if command -v go >/dev/null 2>&1; then
+        go_ver="$(go version | awk '{print $3}' | tr -d 'go')"
+    fi
+    if [[ -z "$go_ver" ]] || [[ "$(printf '%s\n' "1.23" "$go_ver" | sort -V | head -1)" != "1.23" ]]; then
+        local arch goarch go_tar
+        arch="$(detect_arch)"
+        goarch="$arch"
+        go_tar="go1.23.2.linux-${goarch}.tar.gz"
+        log_info "Установка Go 1.23 (${go_tar})..."
+        curl -fsSL "https://go.dev/dl/${go_tar}" | tar -C /usr/local -xz
+        export PATH="/usr/local/go/bin:${PATH}"
+    fi
+    log_success "Go: $(go version)"
 }
 
 confirm_reinstall() {
