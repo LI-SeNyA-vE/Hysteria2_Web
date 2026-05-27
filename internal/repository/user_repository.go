@@ -40,18 +40,6 @@ func (r *UserRepository) GetByUsername(serverID uint, username string) (*user.Us
 	return &u, nil
 }
 
-func (r *UserRepository) GetBySubToken(token string) (*user.User, error) {
-	var u user.User
-	err := r.db.Where("sub_token = ?", token).First(&u).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("get user by sub token: %w", err)
-	}
-	return &u, nil
-}
-
 func (r *UserRepository) ListBySubToken(token string) ([]user.User, error) {
 	var users []user.User
 	if err := r.db.Where("sub_token = ?", token).Find(&users).Error; err != nil {
@@ -120,16 +108,6 @@ func (r *UserRepository) Deactivate(serverID uint, username string) error {
 		Update("is_active", false)
 	if result.Error != nil {
 		return fmt.Errorf("deactivate user: %w", result.Error)
-	}
-	return nil
-}
-
-func (r *UserRepository) DeactivateAllByServer(serverID uint) error {
-	result := r.db.Model(&user.User{}).
-		Where("server_id = ?", serverID).
-		Update("is_active", false)
-	if result.Error != nil {
-		return fmt.Errorf("deactivate users by server: %w", result.Error)
 	}
 	return nil
 }
