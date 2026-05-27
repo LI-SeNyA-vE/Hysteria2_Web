@@ -13,6 +13,7 @@ import (
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/httpapi"
 	applog "hysteria2-web/internal/log"
+	"hysteria2-web/internal/version"
 )
 
 func RunServe(cfg config.Config) {
@@ -46,7 +47,7 @@ func RunServe(cfg config.Config) {
 	}
 	defer httpServer.Stop()
 
-	fileLogger.Info("panel serve started", "http", listenAddr, "sub", cfg.SubscriptionPublicBase())
+	fileLogger.Info("panel serve started", "version", version.Version, "http", listenAddr, "sub", cfg.SubscriptionPublicBase())
 	slog.Info("служба запущена", "http", listenAddr, "health", cfg.LocalHealthURL())
 
 	<-waitForShutdown()

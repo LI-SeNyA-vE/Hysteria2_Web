@@ -593,12 +593,16 @@ func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) e
 		return err
 	}
 
-	username, err := readRequired(reader, "Username (a-z, A-Z, 0-9, _)")
+	rawName, err := readRequired(reader, "Имя пользователя (без sub_, a-z, A-Z, 0-9, _)")
 	if err != nil {
 		return err
 	}
-	if err := validateUsername(username); err != nil {
+	username, err := normalizePanelUsername(rawName)
+	if err != nil {
 		return err
+	}
+	if username != rawName {
+		fmt.Printf("Username: %s\n", username)
 	}
 	limit, err := readInt(reader, "Лимит трафика (GB, 0 — без лимита)", 0)
 	if err != nil {
@@ -641,7 +645,9 @@ func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) e
 		return err
 	}
 	printOK("Пользователь %q создан на сервере %q (id=%d)", username, srv.Name, serverID)
-	printSubscriptionLink(a, username)
+	if err := displaySubscriptionQR(a, username); err != nil {
+		fmt.Printf("Подписка создана, но QR не выведен: %v\n", err)
+	}
 	return nil
 }
 
@@ -672,7 +678,9 @@ func addUserOnServers(ctx context.Context, a *app.App, servers []server.Server, 
 			fmt.Printf("  • %s\n", msg)
 		}
 	}
-	printSubscriptionLink(a, username)
+	if err := displaySubscriptionQR(a, username); err != nil {
+		fmt.Printf("Подписка создана, но QR не выведен: %v\n", err)
+	}
 	return nil
 }
 
@@ -682,12 +690,16 @@ func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) 
 		return err
 	}
 
-	username, err := readRequired(reader, "Username (a-z, A-Z, 0-9, _)")
+	rawName, err := readRequired(reader, "Имя пользователя (без sub_, a-z, A-Z, 0-9, _)")
 	if err != nil {
 		return err
 	}
-	if err := validateUsername(username); err != nil {
+	username, err := normalizePanelUsername(rawName)
+	if err != nil {
 		return err
+	}
+	if username != rawName {
+		fmt.Printf("Username: %s\n", username)
 	}
 	confirm, err := readLine(reader, "Kick пользователя? (y/n): ")
 	if isInputCancelled(err) {
@@ -747,9 +759,16 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 	if err != nil {
 		return err
 	}
-	username, err := readRequired(reader, "Username")
+	rawName, err := readRequired(reader, "Имя пользователя (без sub_)")
 	if err != nil {
 		return err
+	}
+	username, err := normalizePanelUsername(rawName)
+	if err != nil {
+		return err
+	}
+	if username != rawName {
+		fmt.Printf("Username: %s\n", username)
 	}
 	client, err := a.ServerSvc.GetClient(serverID)
 	if err != nil {

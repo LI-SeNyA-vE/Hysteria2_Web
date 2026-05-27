@@ -508,7 +508,7 @@ handle /${PANEL_SUB_PATH}/* {
     reverse_proxy http://${upstream}
 }
 handle /healthz {
-    reverse_proxy http://${upstream}/healthz
+    reverse_proxy http://${upstream}
 }
 EOF
     log_success "Caddy snippet записан"
@@ -516,22 +516,44 @@ EOF
 
 find_caddyfile_for_host() {
     local host="$1"
-    local f found=""
-    for f in /etc/caddy/Caddyfile /etc/caddy/Caddyfile.d/* /etc/caddy/conf.d/*; do
+    local pid cf line f
+
+    pid="$(ss -tlnp 2>/dev/null | grep ':443' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
+    if [[ -n "$pid" && -r "/proc/${pid}/cmdline" ]]; then
+        cf=""
+        while IFS= read -r line; do
+            if [[ "$line" == --config ]]; then
+                read -r cf || true
+                break
+            fi
+        done < <(tr '\0' '\n' < "/proc/${pid}/cmdline")
+        if [[ -n "$cf" && -f "$cf" ]] && grep -qF "$host" "$cf" 2>/dev/null; then
+            echo "$cf"
+            return 0
+        fi
+    fi
+
+    for f in /etc/hysteria/core/scripts/webpanel/Caddyfile; do
         [[ -f "$f" ]] || continue
         if grep -qF "$host" "$f" 2>/dev/null; then
             echo "$f"
             return 0
         fi
     done
-    found="$(grep -rlF "$host" /etc/caddy/ 2>/dev/null | head -1 || true)"
-    [[ -n "$found" ]] && echo "$found"
+
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        if grep -qF "$host" "$f" 2>/dev/null; then
+            echo "$f"
+            return 0
+        fi
+    done < <(find /etc/caddy /etc/hysteria /opt -type f \( -name 'Caddyfile' -o -name '*.caddy' \) 2>/dev/null | sort -u)
+    grep -rlF "$host" /etc/caddy /etc/hysteria /opt 2>/dev/null | head -1 || true
 }
 
 merge_caddy_snippet() {
     local host="$1"
-    local host_re cf import_line
-    host_re="$(escape_regex "$host")"
+    local cf tmp inserted=0
     cf="$(find_caddyfile_for_host "$host")"
     [[ -n "$cf" && -f "$cf" ]] || return 1
 
@@ -541,27 +563,66 @@ merge_caddy_snippet() {
     fi
 
     cp -a "$cf" "${cf}.bak.hysteria2-panel"
-    import_line="import ${PANEL_CADDY_SNIPPET}"
-    sed -i "/${host_re}[[:space:]]*{/{a\\    ${import_line}
-}" "$cf"
+    tmp="$(mktemp)"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        printf '%s\n' "$line"
+        if [[ "$inserted" == "0" && "$line" == *"$host"* && "$line" == *"{"* ]]; then
+            echo "    import ${PANEL_CADDY_SNIPPET}"
+            inserted=1
+        fi
+    done <"$cf" >"$tmp"
+    if [[ "$inserted" != "1" ]]; then
+        rm -f "$tmp"
+        return 1
+    fi
+    mv "$tmp" "$cf"
     log_success "Caddy snippet добавлен в ${cf}"
     return 0
 }
 
 reload_caddy() {
-    command -v caddy >/dev/null 2>&1 || return 1
-    if [[ -f /etc/caddy/Caddyfile ]]; then
-        caddy validate --config /etc/caddy/Caddyfile
+    local cf="${1:-}"
+    local host
+    host="$(parse_sub_host 2>/dev/null || true)"
+
+    if ss -tlnp 2>/dev/null | grep -q ':443.*caddy'; then
+        local pid cmd
+        pid="$(ss -tlnp 2>/dev/null | grep ':443' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
+        if [[ -n "$pid" && -r "/proc/${pid}/cmdline" ]]; then
+            cmd="$(tr '\0' ' ' < "/proc/${pid}/cmdline")"
+            log_info "Caddy на :443 (pid ${pid}): ${cmd}"
+        fi
     fi
-    systemctl reload caddy
-    log_success "caddy перезагружен"
+
+    [[ -z "$cf" && -n "$host" ]] && cf="$(find_caddyfile_for_host "$host")"
+
+    if systemctl is-active --quiet hysteria-caddy 2>/dev/null; then
+        if command -v caddy >/dev/null 2>&1 && [[ -n "$cf" && -f "$cf" ]]; then
+            caddy validate --config "$cf" 2>/dev/null || true
+        fi
+        systemctl restart hysteria-caddy
+        log_success "hysteria-caddy перезапущен (только HTTPS-прокси, VPN не трогаем)"
+        return 0
+    fi
+
+    if systemctl is-active --quiet caddy 2>/dev/null; then
+        command -v caddy >/dev/null 2>&1 && caddy validate --config /etc/caddy/Caddyfile 2>/dev/null || true
+        systemctl reload caddy
+        log_success "systemd caddy перезагружен"
+        return 0
+    fi
+
+    log_warning "Перезапустите Caddy: systemctl restart hysteria-caddy"
+    return 1
 }
 
 install_caddy_routes() {
     local host="$1"
+    local cf
     write_caddy_snippet
     if merge_caddy_snippet "$host"; then
-        reload_caddy
+        cf="$(find_caddyfile_for_host "$host")"
+        reload_caddy "$cf"
         return 0
     fi
     log_warning "Caddyfile для ${host} не найден. В блок site добавьте:"
@@ -717,5 +778,13 @@ main() {
     print_summary
     run_menu
 }
+
+if [[ "${PANEL_TEST_CADDY_ONLY:-0}" == "1" ]]; then
+    export PANEL_SUB_DOMAIN="${PANEL_SUB_DOMAIN:?set PANEL_SUB_DOMAIN}"
+    export PANEL_SUB_PATH="${PANEL_SUB_PATH:-subtoken}"
+    export PANEL_HTTP_ADDR="${PANEL_HTTP_ADDR:-127.0.0.1:8787}"
+    install_caddy_routes "$(parse_sub_host)"
+    exit $?
+fi
 
 main "$@"

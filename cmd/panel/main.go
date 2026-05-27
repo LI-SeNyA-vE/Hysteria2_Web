@@ -7,6 +7,7 @@ import (
 
 	"hysteria2-web/internal/cli"
 	"hysteria2-web/internal/config"
+	"hysteria2-web/internal/version"
 )
 
 func main() {
@@ -47,7 +48,7 @@ func parseCommand(args []string) (command string, rest []string) {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `Hysteria2 VPN Panel
+	fmt.Fprintf(os.Stderr, `Hysteria2 VPN Panel v%s
 
 Использование:
   panel [-config panel.json]           меню администратора
@@ -58,5 +59,5 @@ func printUsage() {
   panel                                открыть меню
   systemctl start hysteria2-panel      автозапуск службы
 
-`)
+`, version.Version)
 }

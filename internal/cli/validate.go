@@ -2,8 +2,30 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 )
+
+const usernamePrefix = "sub_"
+
+func withUsernamePrefix(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return name
+	}
+	if strings.HasPrefix(name, usernamePrefix) {
+		return name
+	}
+	return usernamePrefix + name
+}
+
+func normalizePanelUsername(name string) (string, error) {
+	name = withUsernamePrefix(name)
+	if err := validateUsername(name); err != nil {
+		return "", err
+	}
+	return name, nil
+}
 
 func validateUsername(username string) error {
 	if username == "" {

@@ -17,50 +17,7 @@ import (
 	"golang.org/x/term"
 )
 
-func printSubscriptionLink(a *app.App, username string) {
-	info, err := subscriptionInfoForUser(a, username)
-	if err != nil {
-		return
-	}
-	fmt.Printf("Username: %s\n", info.Username)
-	fmt.Printf("SubToken: %s\n", info.Token)
-	fmt.Printf("Подписка: %s\n", info.URL)
-	fmt.Println("(в URL — SubToken, не username)")
-}
-
-type subscriptionInfo struct {
-	Username string
-	Token    string
-	URL      string
-}
-
-func subscriptionInfoForUser(a *app.App, username string) (subscriptionInfo, error) {
-	if _, err := a.BlitzSvc.EnsureSubToken(username); err != nil {
-		return subscriptionInfo{}, err
-	}
-	token, err := a.UserRepo.GetSubTokenByUsername(username)
-	if err != nil {
-		return subscriptionInfo{}, err
-	}
-	if token == "" {
-		return subscriptionInfo{}, fmt.Errorf("у пользователя %q нет токена подписки", username)
-	}
-	return subscriptionInfo{
-		Username: username,
-		Token:    token,
-		URL:      config.SubscriptionURL(token),
-	}, nil
-}
-
-func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Context) error {
-	username, err := readRequired(reader, "Username (a-z, A-Z, 0-9, _)")
-	if err != nil {
-		return err
-	}
-	if err := validateUsername(username); err != nil {
-		return err
-	}
-
+func displaySubscriptionQR(a *app.App, username string) error {
 	info, err := subscriptionInfoForUser(a, username)
 	if err != nil {
 		return err
@@ -115,6 +72,46 @@ func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Conte
 	fmt.Println()
 	fmt.Println("Клиент скачает конфиг по URL и получит hy2:// ссылки со всех серверов.")
 	return nil
+}
+
+type subscriptionInfo struct {
+	Username string
+	Token    string
+	URL      string
+}
+
+func subscriptionInfoForUser(a *app.App, username string) (subscriptionInfo, error) {
+	if _, err := a.BlitzSvc.EnsureSubToken(username); err != nil {
+		return subscriptionInfo{}, err
+	}
+	token, err := a.UserRepo.GetSubTokenByUsername(username)
+	if err != nil {
+		return subscriptionInfo{}, err
+	}
+	if token == "" {
+		return subscriptionInfo{}, fmt.Errorf("у пользователя %q нет токена подписки", username)
+	}
+	return subscriptionInfo{
+		Username: username,
+		Token:    token,
+		URL:      config.SubscriptionURL(token),
+	}, nil
+}
+
+func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Context) error {
+	rawName, err := readRequired(reader, "Имя пользователя (без sub_, a-z, A-Z, 0-9, _)")
+	if err != nil {
+		return err
+	}
+	username, err := normalizePanelUsername(rawName)
+	if err != nil {
+		return err
+	}
+	if username != rawName {
+		fmt.Printf("Username: %s\n", username)
+	}
+
+	return displaySubscriptionQR(a, username)
 }
 
 func saveSubscriptionQRPNG(url, username string) (string, error) {
