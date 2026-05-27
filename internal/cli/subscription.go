@@ -52,14 +52,6 @@ func subscriptionInfoForUser(a *app.App, username string) (subscriptionInfo, err
 	}, nil
 }
 
-func subscriptionURLForUser(a *app.App, username string) (string, error) {
-	info, err := subscriptionInfoForUser(a, username)
-	if err != nil {
-		return "", err
-	}
-	return info.URL, nil
-}
-
 func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Context) error {
 	username, err := readRequired(reader, "Username (a-z, A-Z, 0-9, _)")
 	if err != nil {
@@ -69,14 +61,11 @@ func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Conte
 		return err
 	}
 
-	url, err := subscriptionURLForUser(a, username)
-	if err != nil {
-		return err
-	}
 	info, err := subscriptionInfoForUser(a, username)
 	if err != nil {
 		return err
 	}
+	url := info.URL
 
 	fmt.Println()
 	fmt.Printf("Username:  %s\n", info.Username)

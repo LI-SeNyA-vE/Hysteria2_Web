@@ -22,7 +22,10 @@ func (c Config) SubscriptionPublicBase() string {
 	if v := strings.TrimSpace(c.SubDomain); v != "" {
 		return strings.TrimRight(v, "/")
 	}
+	return c.LocalHTTPBase()
+}
 
+func (c Config) LocalHTTPBase() string {
 	addr := c.HTTPAddr
 	if addr == "" {
 		addr = Default().HTTPAddr
@@ -37,6 +40,10 @@ func (c Config) SubscriptionPublicBase() string {
 		return strings.TrimRight(addr, "/")
 	}
 	return "http://" + strings.TrimRight(addr, "/")
+}
+
+func (c Config) LocalHealthURL() string {
+	return c.LocalHTTPBase() + "/healthz"
 }
 
 func (c Config) SubscriptionPath() string {

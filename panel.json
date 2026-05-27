@@ -1,8 +1,0 @@
-{
-  "db_path": "./panel.db",
-  "log_path": "./panel.log",
-  "http_addr": "0.0.0.0:8787",
-  "sync_interval": "30s",
-  "sub_domain": "https://subpnv.bpo.travel",
-  "sub_path": "subtoken"
-}

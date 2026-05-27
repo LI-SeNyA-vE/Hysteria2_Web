@@ -35,6 +35,7 @@ func interactiveSettings(reader *bufio.Reader, cfg config.Config) error {
 				return err
 			}
 			fmt.Println("Настройки сохранены.")
+			fmt.Println("Перезапустите службу для HTTP/sync: systemctl restart hysteria2-panel")
 			return ErrReloadPanel
 		case "1":
 			draft.DBPath, err = readStringWithDefault(reader, "db_path", draft.DBPath)

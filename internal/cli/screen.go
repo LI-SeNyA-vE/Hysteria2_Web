@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"hysteria2-web/internal/config"
 )
@@ -22,12 +21,17 @@ func printScreenHeader(title string) {
 	}
 }
 
-func printMenu(syncInterval time.Duration, logPath, httpAddr string) {
+func printMenu(cfg config.Config, serviceOK bool) {
 	printScreenHeader("")
-	fmt.Printf("  Sync: %s  |  Log: %s\n", syncInterval, logPath)
-	fmt.Printf("  Sub: %s/%s/{SubToken}\n", config.SubscriptionPublicBase(), config.SubscriptionPath())
+	if serviceOK {
+		fmt.Println("  Служба: работает (HTTP + sync)")
+	} else {
+		fmt.Println("  Служба: не запущена → panel serve")
+	}
+	fmt.Printf("  Sync: %s  |  Log: %s\n", cfg.SyncInterval, cfg.LogPath)
+	fmt.Printf("  Sub: %s/%s/{SubToken}\n", cfg.SubscriptionPublicBase(), cfg.SubscriptionPath())
 	fmt.Println("  (не username! URL — в п. 10)")
-	if config.UsingLocalSubscriptionURL() {
+	if cfg.UsingLocalSubscriptionURL() {
 		fmt.Println("  (телефон: sub_domain в п. 11 — http://IP:8787)")
 	}
 	fmt.Println("  Ctrl+C — отмена (в меню — выход)")

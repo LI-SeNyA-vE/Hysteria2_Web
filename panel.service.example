@@ -1,0 +1,13 @@
+[Unit]
+Description=Hysteria2 VPN Panel (HTTP subscriptions + traffic sync)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hysteria2-panel
+ExecStart=/opt/hysteria2-panel/panel serve -config /opt/hysteria2-panel/panel.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

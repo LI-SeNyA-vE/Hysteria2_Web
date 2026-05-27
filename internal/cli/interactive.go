@@ -16,7 +16,6 @@ import (
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/domain/server"
 	"hysteria2-web/internal/domain/user"
-	"hysteria2-web/internal/httpapi"
 	applog "hysteria2-web/internal/log"
 )
 
@@ -37,6 +36,8 @@ func RunInteractive(initial config.Config, configPath string) {
 		cfg = loaded
 		clearScreen()
 		fmt.Println("Панель перезагружена с новыми настройками.")
+		fmt.Println("Если меняли http_addr, sync_interval или sub_path — перезапустите службу:")
+		fmt.Println("  systemctl restart hysteria2-panel")
 		fmt.Println()
 	}
 }
@@ -58,26 +59,15 @@ func runPanelSession(cfg config.Config) (reload bool) {
 	}
 	defer a.Close()
 
-	syncInterval := cfg.SyncInterval
-	workerCtx, cancelWorker := context.WithCancel(context.Background())
-	defer cancelWorker()
-	a.BlitzSvc.StartTrafficSyncWorker(workerCtx, syncInterval)
-	logger.Info("panel started", "log_path", cfg.LogPath, "sync_interval", syncInterval.String())
-
-	httpAddr := cfg.HTTPAddr
-	var httpServer *httpapi.HTTPServer
-	httpServer, listenAddr, httpErr := httpapi.Start(httpAddr, a, logger)
-	if httpErr != nil {
-		fmt.Fprintf(os.Stderr, "\n*** HTTP подписки НЕ ЗАПУЩЕН: %v ***\n", httpErr)
-		fmt.Fprintf(os.Stderr, "Ссылка подписки не будет работать. Освободите порт или измените http_addr в настройках (п. 11)\n\n")
-		logger.Error("http server failed to start", "addr", httpAddr, "err", httpErr)
-		httpAddr = ""
+	serviceOK := serviceRunning(cfg)
+	if serviceOK {
+		fmt.Println("Служба: работает (HTTP подписок + sync)")
 	} else {
-		logger.Info("http server started", "addr", listenAddr)
-		fmt.Printf("HTTP подписки: %s  (проверка: curl %s/healthz)\n",
-			cfg.SubscriptionPublicBase(), cfg.SubscriptionPublicBase())
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "\n⚠ Служба не запущена — подписки и авто-sync не работают.\n")
+		fmt.Fprintf(os.Stderr, "  Запуск: panel serve\n")
+		fmt.Fprintf(os.Stderr, "  или:    systemctl start hysteria2-panel\n\n")
 	}
+	fmt.Println()
 
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
@@ -85,7 +75,7 @@ func runPanelSession(cfg config.Config) (reload bool) {
 
 	for {
 		clearScreen()
-		printMenu(syncInterval, cfg.LogPath, httpDisplayAddr(httpAddr))
+		printMenu(cfg, serviceOK)
 		setMainMenu(true)
 		choice, err := readLine(reader, "Выберите действие: ")
 		setMainMenu(false)
@@ -96,8 +86,6 @@ func runPanelSession(cfg config.Config) (reload bool) {
 		if choice == "0" || choice == "q" || choice == "exit" {
 			clearScreen()
 			fmt.Println("Выход.")
-			cancelWorker()
-			_ = httpServer.Stop()
 			return false
 		}
 
@@ -138,8 +126,7 @@ func runPanelSession(cfg config.Config) (reload bool) {
 		}
 
 		if errors.Is(actionErr, ErrReloadPanel) {
-			cancelWorker()
-			_ = httpServer.Stop()
+			serviceOK = serviceRunning(config.Get())
 			return true
 		}
 
@@ -419,7 +406,7 @@ func interactiveListUsers(reader *bufio.Reader, a *app.App, ctx context.Context)
 
 	switch choice {
 	case "1":
-		return listPanelUsers(a, ctx, servers)
+		return listPanelUsers(a, servers)
 	case "2":
 		return listBlitzUsersOnServer(reader, a, ctx)
 	default:
@@ -427,7 +414,7 @@ func interactiveListUsers(reader *bufio.Reader, a *app.App, ctx context.Context)
 	}
 }
 
-func listPanelUsers(a *app.App, ctx context.Context, servers []server.Server) error {
+func listPanelUsers(a *app.App, servers []server.Server) error {
 	localUsers, err := a.UserRepo.ListAll()
 	if err != nil {
 		return err
@@ -808,11 +795,4 @@ func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) erro
 		return fmt.Errorf("неверный выбор")
 	}
 	return nil
-}
-
-func httpDisplayAddr(httpAddr string) string {
-	if httpAddr == "" {
-		return "(HTTP не запущен — порт занят, см. panel.log)"
-	}
-	return config.SubscriptionPublicBase()
 }

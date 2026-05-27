@@ -1,0 +1,14 @@
+# Сборка
+/bin/
+
+# Локальные данные и конфиг (на сервере создаются отдельно)
+panel.db
+panel.log
+panel.json
+qr-*.png
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
