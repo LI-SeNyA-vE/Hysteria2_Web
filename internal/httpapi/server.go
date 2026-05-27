@@ -45,13 +45,3 @@ func (hs *HTTPServer) Stop() error {
 	defer cancel()
 	return hs.srv.Shutdown(ctx)
 }
-
-func ListenAndServe(addr string, a *app.App, logger *slog.Logger) error {
-	hs, listenAddr, err := Start(addr, a, logger)
-	if err != nil {
-		return err
-	}
-	logger.Info("http server started", "addr", listenAddr)
-	_ = hs
-	select {}
-}

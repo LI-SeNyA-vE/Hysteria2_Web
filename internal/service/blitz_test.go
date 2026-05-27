@@ -61,8 +61,8 @@ func TestAddUser(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/users/":
 			mu.Lock()
 			addCalled = true
@@ -136,8 +136,8 @@ func TestKickUser(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/users/alice":
 			mu.Lock()
 			deleteCalled = true
@@ -192,8 +192,8 @@ func TestSyncTrafficDeltaAndKick(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/users/":
 			users := []blitz.UserInfo{
 				{
@@ -259,8 +259,8 @@ func TestSyncTrafficDoesNotDoubleCount(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/users/":
 			users := []blitz.UserInfo{
 				{
@@ -344,8 +344,8 @@ func TestCreateAndDeleteServer(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/server/version" {
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		if r.URL.Path == "/api/v1/server/status" {
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 			return
 		}
 		http.NotFound(w, r)
@@ -374,19 +374,3 @@ func TestCreateAndDeleteServer(t *testing.T) {
 		t.Fatalf("servers count = %d, want 0", len(servers))
 	}
 }
-
-type mockBlitzClient struct{}
-
-func (m *mockBlitzClient) AddUser(_ context.Context, _ blitz.AddUserRequest) error {
-	return nil
-}
-
-func (m *mockBlitzClient) RemoveUser(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *mockBlitzClient) ListUsers(_ context.Context) ([]blitz.UserInfo, error) {
-	return nil, nil
-}
-
-var _ blitz.UserClient = (*mockBlitzClient)(nil)

@@ -94,40 +94,6 @@ func TestLoadFromFile(t *testing.T) {
 	}
 }
 
-func TestLoadLegacySubPublicURLAsPath(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "panel.json")
-	content := `{"sub_public_url":"subtoken"}`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if cfg.SubPath != "subtoken" {
-		t.Fatalf("SubPath = %q", cfg.SubPath)
-	}
-}
-
-func TestLoadLegacySubPublicURLAsDomain(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "panel.json")
-	content := `{"sub_public_url":"https://vpn.example.com"}`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if cfg.SubDomain != "https://vpn.example.com" {
-		t.Fatalf("SubDomain = %q", cfg.SubDomain)
-	}
-}
-
 func TestLoadInvalidSyncInterval(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "panel.json")

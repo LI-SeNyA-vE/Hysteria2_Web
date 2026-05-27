@@ -27,10 +27,6 @@ type App struct {
 	UserRepo   *repository.UserRepository
 }
 
-func Open(dbPath string) (*App, error) {
-	return OpenWithLogger(dbPath, nil)
-}
-
 func OpenWithLogger(dbPath string, panelLogger *slog.Logger) (*App, error) {
 	if dbPath == "" {
 		dbPath = config.Default().DBPath

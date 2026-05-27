@@ -29,7 +29,6 @@ type fileConfig struct {
 	SyncInterval string `json:"sync_interval"`
 	SubDomain    string `json:"sub_domain"`
 	SubPath      string `json:"sub_path"`
-	SubPublicURL string `json:"sub_public_url,omitempty"` // legacy
 }
 
 var global Config
@@ -150,19 +149,6 @@ func applyFile(cfg *Config, raw fileConfig) error {
 			return err
 		}
 		cfg.SubPath = path
-	}
-
-	if raw.SubPublicURL != "" && cfg.SubDomain == "" && (cfg.SubPath == "" || cfg.SubPath == defaultSubPath) {
-		legacy := strings.TrimSpace(raw.SubPublicURL)
-		if strings.Contains(legacy, "://") {
-			cfg.SubDomain = strings.TrimRight(legacy, "/")
-		} else if legacy != "" {
-			path, err := normalizeSubPath(legacy)
-			if err != nil {
-				return err
-			}
-			cfg.SubPath = path
-		}
 	}
 
 	if cfg.SubPath == "" {

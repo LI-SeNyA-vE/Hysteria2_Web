@@ -110,12 +110,3 @@ func CollectRelabeledHy2URIs(resp UserURIResponse, serverName string) []string {
 	}
 	return out
 }
-
-func CollectHy2URIs(resp UserURIResponse) []string {
-	entries := hy2Entries(resp)
-	out := make([]string, len(entries))
-	for i, e := range entries {
-		out[i] = e.uri
-	}
-	return out
-}

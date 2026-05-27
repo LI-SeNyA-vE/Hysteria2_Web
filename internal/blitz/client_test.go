@@ -144,28 +144,6 @@ func TestGetServerStatus(t *testing.T) {
 	}
 }
 
-func TestGetVersionInfo(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/server/version" {
-			http.NotFound(w, r)
-			return
-		}
-		_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
-	}))
-	defer srv.Close()
-
-	client := blitz.NewClient(srv.URL, "test-key")
-	info, err := client.GetVersionInfo(context.Background())
-	if err != nil {
-		t.Fatalf("GetVersionInfo() error = %v", err)
-	}
-	if info.CurrentVersion != "0.2.0" {
-		t.Fatalf("version = %q", info.CurrentVersion)
-	}
-}
-
 func TestAddUserError(t *testing.T) {
 	t.Parallel()
 

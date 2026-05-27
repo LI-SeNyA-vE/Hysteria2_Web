@@ -28,7 +28,6 @@ type TrafficUpdate struct {
 type Repository interface {
 	Create(u *User) error
 	GetByUsername(serverID uint, username string) (*User, error)
-	GetBySubToken(token string) (*User, error)
 	ListBySubToken(token string) ([]User, error)
 	GetSubTokenByUsername(username string) (string, error)
 	ListAll() ([]User, error)
@@ -37,7 +36,6 @@ type Repository interface {
 	ListActive() ([]User, error)
 	ListActiveByServer(serverID uint) ([]User, error)
 	Deactivate(serverID uint, username string) error
-	DeactivateAllByServer(serverID uint) error
 	UpdateTraffic(serverID uint, username string, update TrafficUpdate) error
 }
 

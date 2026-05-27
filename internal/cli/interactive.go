@@ -218,7 +218,6 @@ type panelUserRow struct {
 }
 
 type blitzUserRow struct {
-	ServerID   uint
 	ServerName string
 	Username   string
 	LimitGB    int
@@ -585,7 +584,6 @@ func blitzUsersToRows(srv server.Server, blitzUsers []blitz.UserInfo, localByKey
 		}
 
 		rows = append(rows, blitzUserRow{
-			ServerID:   srv.ID,
 			ServerName: srv.Name,
 			Username:   bu.Username,
 			LimitGB:    limitGB,

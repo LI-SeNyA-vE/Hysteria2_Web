@@ -6,17 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
 )
-
-type UserClient interface {
-	AddUser(ctx context.Context, req AddUserRequest) error
-	RemoveUser(ctx context.Context, username string) error
-	ListUsers(ctx context.Context) ([]UserInfo, error)
-}
 
 type HTTPClient struct {
 	baseURL    string
@@ -32,10 +25,6 @@ func NewClient(baseURL, apiKey string) *HTTPClient {
 			Timeout: 15 * time.Second,
 		},
 	}
-}
-
-func (c *HTTPClient) BaseURL() string {
-	return c.baseURL
 }
 
 func (c *HTTPClient) setHeaders(req *http.Request) {
@@ -64,7 +53,6 @@ func (c *HTTPClient) do(ctx context.Context, req *http.Request, expectStatus int
 	return resp, nil
 }
 
-// expectStatus: exact code, or 0 to accept any 2xx.
 func statusMatches(code, expectStatus int) bool {
 	if expectStatus == 0 {
 		return code >= 200 && code < 300
@@ -128,47 +116,6 @@ func (c *HTTPClient) doDetail(ctx context.Context, method, path string, body any
 
 func (c *HTTPClient) doDetailNoBody(ctx context.Context, method, path string, expectStatus int) (DetailResponse, error) {
 	resp, err := c.doNoBody(ctx, method, path, expectStatus)
-	if err != nil {
-		return DetailResponse{}, err
-	}
-	var out DetailResponse
-	if err := c.decodeJSON(resp, &out); err != nil {
-		return DetailResponse{}, err
-	}
-	return out, nil
-}
-
-func (c *HTTPClient) doBytes(ctx context.Context, method, path string, expectStatus int) ([]byte, error) {
-	resp, err := c.doNoBody(ctx, method, path, expectStatus)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
-}
-
-func (c *HTTPClient) doMultipart(ctx context.Context, path, fieldName, filename string, file io.Reader, expectStatus int) (DetailResponse, error) {
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	part, err := writer.CreateFormFile(fieldName, filename)
-	if err != nil {
-		return DetailResponse{}, fmt.Errorf("blitz: create form file: %w", err)
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return DetailResponse{}, fmt.Errorf("blitz: write form file: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return DetailResponse{}, fmt.Errorf("blitz: close multipart writer: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url(path), &buf)
-	if err != nil {
-		return DetailResponse{}, fmt.Errorf("blitz: create request: %w", err)
-	}
-	c.setHeaders(req)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := c.do(ctx, req, expectStatus)
 	if err != nil {
 		return DetailResponse{}, err
 	}

@@ -20,7 +20,11 @@ func TestServerServiceCreateDuplicate(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		if r.URL.Path == "/api/v1/server/status" {
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
+			return
+		}
+		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
@@ -49,14 +53,11 @@ func TestServerServiceGetClient(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
-		case "/api/v1/server/status":
+		if r.URL.Path == "/api/v1/server/status" {
 			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 5})
-		default:
-			http.NotFound(w, r)
+			return
 		}
+		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 

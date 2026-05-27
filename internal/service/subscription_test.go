@@ -25,8 +25,8 @@ func TestBuildSubscriptionSuccess(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/users/alice/uri":
 			_ = json.NewEncoder(w).Encode(blitz.UserURIResponse{
 				Username: "alice",
@@ -105,8 +105,8 @@ func TestSubHTTPEndpoint(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/v1/server/version":
-			_ = json.NewEncoder(w).Encode(blitz.VersionInfoResponse{CurrentVersion: "0.2.0"})
+		case r.URL.Path == "/api/v1/server/status":
+			_ = json.NewEncoder(w).Encode(blitz.ServerStatusResponse{OnlineUsers: 0})
 		case r.URL.Path == "/api/v1/users/alice/uri":
 			_ = json.NewEncoder(w).Encode(blitz.UserURIResponse{
 				Username: "alice",

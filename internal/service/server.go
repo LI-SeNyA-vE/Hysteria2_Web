@@ -46,7 +46,7 @@ func (s *ServerService) CreateServer(ctx context.Context, name, baseURL, apiKey 
 	}
 
 	client := blitz.NewClient(baseURL, apiKey)
-	if _, err := client.GetVersionInfo(ctx); err != nil {
+	if _, err := client.GetServerStatus(ctx); err != nil {
 		_ = s.repo.Delete(srv.ID)
 		return nil, fmt.Errorf("verify blitz connection: %w", err)
 	}

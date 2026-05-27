@@ -32,10 +32,6 @@ func NewBlitzService(registry *blitz.Registry, repo user.Repository, logger *slo
 	}
 }
 
-func (s *BlitzService) Client(serverID uint) (*blitz.HTTPClient, error) {
-	return s.registry.Get(serverID)
-}
-
 func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, password string, trafficLimitGB, expirationDays int) error {
 	existing, err := s.repo.GetByUsername(serverID, username)
 	if err != nil {
