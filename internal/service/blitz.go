@@ -73,14 +73,32 @@ func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, pas
 	}
 	s.logger.Info("user added in blitz", "server_id", serverID, "username", username)
 
+	subToken, err := s.repo.GetSubTokenByUsername(username)
+	if err != nil {
+		return err
+	}
+	if subToken == "" {
+		subToken, err = generateSubToken()
+		if err != nil {
+			return err
+		}
+	}
+
+	var expiresAt time.Time
+	if expirationDays > 0 {
+		expiresAt = time.Now().UTC().AddDate(0, 0, expirationDays)
+	}
+
 	u := &user.User{
 		ServerID:       serverID,
 		Username:       username,
 		AuthPassword:   password,
+		SubToken:       subToken,
 		TrafficLimit:   trafficLimitGB,
 		TrafficUsed:    0,
 		IsActive:       true,
 		ExpirationDays: expirationDays,
+		ExpiresAt:      expiresAt,
 	}
 	if err := s.repo.Create(u); err != nil {
 		s.logger.Error("persist user failed",
@@ -90,8 +108,75 @@ func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, pas
 		)
 		return fmt.Errorf("persist user: %w", err)
 	}
-	s.logger.Info("user saved locally", "server_id", serverID, "username", username)
+	s.logger.Info("user saved locally", "server_id", serverID, "username", username, "sub_token", subToken)
 	return nil
+}
+
+func (s *BlitzService) EnsureSubToken(username string) (string, error) {
+	token, err := s.repo.GetSubTokenByUsername(username)
+	if err != nil {
+		return "", err
+	}
+	if token != "" {
+		return token, nil
+	}
+
+	users, err := s.repo.ListByUsername(username)
+	if err != nil {
+		return "", err
+	}
+	if len(users) == 0 {
+		return "", fmt.Errorf("user %q not found in local database", username)
+	}
+
+	token, err = generateSubToken()
+	if err != nil {
+		return "", err
+	}
+	for _, u := range users {
+		if err := s.repo.UpdateSubToken(u.ServerID, u.Username, token); err != nil {
+			return "", err
+		}
+	}
+	s.logger.Info("sub token assigned", "username", username, "sub_token", token)
+	return token, nil
+}
+
+func (s *BlitzService) BackfillSubTokens() (int, error) {
+	all, err := s.repo.ListAll()
+	if err != nil {
+		return 0, err
+	}
+
+	tokenByUser := make(map[string]string)
+	for _, u := range all {
+		if u.SubToken != "" {
+			tokenByUser[u.Username] = u.SubToken
+		}
+	}
+
+	updated := 0
+	for _, u := range all {
+		if u.SubToken != "" {
+			continue
+		}
+		token := tokenByUser[u.Username]
+		if token == "" {
+			token, err = generateSubToken()
+			if err != nil {
+				return updated, err
+			}
+			tokenByUser[u.Username] = token
+		}
+		if err := s.repo.UpdateSubToken(u.ServerID, u.Username, token); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	if updated > 0 {
+		s.logger.Info("backfilled sub tokens", "count", updated)
+	}
+	return updated, nil
 }
 
 func (s *BlitzService) KickUser(ctx context.Context, serverID uint, username string) error {

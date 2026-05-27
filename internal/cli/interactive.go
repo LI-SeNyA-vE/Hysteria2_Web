@@ -15,6 +15,7 @@ import (
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/domain/server"
 	"hysteria2-web/internal/domain/user"
+	"hysteria2-web/internal/httpapi"
 	applog "hysteria2-web/internal/log"
 )
 
@@ -47,12 +48,27 @@ func RunInteractive() {
 	a.BlitzSvc.StartTrafficSyncWorker(workerCtx, syncInterval)
 	logger.Info("panel started", "log_path", logPath, "sync_interval", syncInterval.String())
 
+	httpAddr := config.EnvOrDefault("HTTP_ADDR", "0.0.0.0:8787")
+	httpListen, httpErr := httpapi.Start(httpAddr, a, logger)
+	if httpErr != nil {
+		fmt.Fprintf(os.Stderr, "\n*** HTTP подписки НЕ ЗАПУЩЕН: %v ***\n", httpErr)
+		fmt.Fprintf(os.Stderr, "Ссылка /sub/... не будет работать. Освободите порт или задайте другой:\n")
+		fmt.Fprintf(os.Stderr, "  export HTTP_ADDR=0.0.0.0:8787\n\n")
+		logger.Error("http server failed to start", "addr", httpAddr, "err", httpErr)
+		httpAddr = ""
+	} else {
+		logger.Info("http server started", "addr", httpListen)
+		fmt.Printf("HTTP подписки: %s  (проверка: curl %s/healthz)\n",
+			config.SubscriptionPublicBase(), config.SubscriptionPublicBase())
+		fmt.Println()
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
 
 	for {
 		clearScreen()
-		printMenu(syncInterval, logPath)
+		printMenu(syncInterval, logPath, httpDisplayAddr(httpAddr))
 		choice := strings.TrimSpace(readLine(reader, "Выберите действие: "))
 
 		if choice == "0" || choice == "q" || choice == "exit" {
@@ -89,6 +105,8 @@ func RunInteractive() {
 			actionErr = interactiveUserURI(reader, a, ctx)
 		case "9":
 			actionErr = interactiveSync(reader, a, ctx)
+		case "10":
+			actionErr = interactiveSubscriptionQR(reader, a, ctx)
 		default:
 			fmt.Println("Неизвестный пункт меню.")
 		}
@@ -432,6 +450,7 @@ func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) e
 		return err
 	}
 	printOK("Пользователь %q создан на сервере %q (id=%d)", username, srv.Name, serverID)
+	printSubscriptionLink(a, username)
 	return nil
 }
 
@@ -462,6 +481,7 @@ func addUserOnServers(ctx context.Context, a *app.App, servers []server.Server, 
 			fmt.Printf("  • %s\n", msg)
 		}
 	}
+	printSubscriptionLink(a, username)
 	return nil
 }
 
@@ -586,4 +606,11 @@ func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) erro
 		return fmt.Errorf("неверный выбор")
 	}
 	return nil
+}
+
+func httpDisplayAddr(httpAddr string) string {
+	if httpAddr == "" {
+		return "(HTTP не запущен — порт занят, см. panel.log)"
+	}
+	return config.SubscriptionPublicBase()
 }

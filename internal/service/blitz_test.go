@@ -17,11 +17,14 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -92,6 +95,9 @@ func TestAddUser(t *testing.T) {
 	}
 	if u == nil || !u.IsActive || u.TrafficLimit != 10 {
 		t.Fatalf("unexpected user: %+v", u)
+	}
+	if u.SubToken == "" {
+		t.Fatal("expected SubToken to be generated")
 	}
 }
 
@@ -297,6 +303,40 @@ func TestSyncTrafficDoesNotDoubleCount(t *testing.T) {
 	u2, _ := repo.GetByUsername(serverID, "alice")
 	if u2.TrafficUsed != u1.TrafficUsed {
 		t.Fatalf("traffic_used changed on second sync: %d -> %d", u1.TrafficUsed, u2.TrafficUsed)
+	}
+}
+
+func TestBackfillSubTokens(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	userRepo := repository.NewUserRepository(db)
+	svc := service.NewBlitzService(blitz.NewRegistry(), userRepo, nil)
+
+	if err := userRepo.Create(&user.User{
+		ServerID:     1,
+		Username:     "alice",
+		AuthPassword: "pass",
+		TrafficLimit: 10,
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	n, err := svc.BackfillSubTokens()
+	if err != nil {
+		t.Fatalf("BackfillSubTokens() error = %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("BackfillSubTokens() count = %d, want 1", n)
+	}
+
+	token, err := userRepo.GetSubTokenByUsername("alice")
+	if err != nil {
+		t.Fatalf("GetSubTokenByUsername() error = %v", err)
+	}
+	if token == "" {
+		t.Fatal("expected sub token after backfill")
 	}
 }
 

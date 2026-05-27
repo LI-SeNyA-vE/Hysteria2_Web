@@ -12,6 +12,7 @@ type Config struct {
 	DefaultName  string
 	DBPath       string
 	LogPath      string
+	HTTPAddr     string
 	SyncInterval time.Duration
 }
 
@@ -22,6 +23,7 @@ func Load() (Config, error) {
 		DefaultName:  envOrDefault("DEFAULT_SERVER_NAME", "default"),
 		DBPath:       envOrDefault("DB_PATH", "./panel.db"),
 		LogPath:      envOrDefault("LOG_PATH", "./panel.log"),
+		HTTPAddr:     envOrDefault("HTTP_ADDR", "0.0.0.0:8787"),
 	}
 
 	intervalStr := envOrDefault("SYNC_INTERVAL", "30s")

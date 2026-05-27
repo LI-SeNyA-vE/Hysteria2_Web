@@ -27,3 +27,108 @@ time=2026-05-26T19:20:41.074+03:00 level=WARN msg="blitz user not found during t
 time=2026-05-26T19:20:54.311+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
 time=2026-05-26T19:21:10.185+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
 time=2026-05-26T19:21:24.296+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:33:06.046+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T10:33:06.046+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T10:33:06.046+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T10:33:37.022+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:33:51.128+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:34:07.008+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:34:37.029+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:35:07.018+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:35:37.022+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:36:06.965+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:36:37.029+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:37:07.003+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:37:36.960+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:38:07.027+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:38:37.044+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:39:07.046+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:39:36.969+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:40:07.053+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:40:36.954+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:41:06.957+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:41:36.944+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:42:06.933+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:42:37.038+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:43:06.972+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:43:36.955+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:44:07.009+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:44:37.084+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:45:07.088+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:45:37.037+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:46:07.095+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:46:37.044+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:47:06.976+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:47:37.004+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:48:06.974+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:48:37.003+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:49:07.047+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:49:35.035+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T10:49:35.035+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T10:49:35.035+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T10:50:05.952+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T10:50:35.977+03:00 level=WARN msg="blitz user not found during traffic sync" server_id=1 username=tetstttt
+time=2026-05-27T11:07:32.571+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:07:32.571+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:07:32.571+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:07:49.358+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:07:49.358+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:07:49.358+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:15:52.974+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:16:04.198+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:16:04.198+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:16:04.198+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:16:37.487+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:16:40.788+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:16:40.788+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:16:40.789+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:16:45.647+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:16:45.647+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:16:45.647+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:23:02.407+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:23:08.547+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:23:08.547+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:23:08.547+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:23:17.284+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:23:17.284+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:23:17.285+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:24:53.831+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:24:54.409+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:24:54.409+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:24:54.409+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:25:02.713+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:25:02.713+03:00 level=INFO msg="http server started" addr=:8080
+time=2026-05-27T11:25:02.714+03:00 level=ERROR msg="http server stopped" addr=:8080 err="listen tcp :8080: bind: address already in use"
+time=2026-05-27T11:27:58.024+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:28:00.774+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:28:00.775+03:00 level=INFO msg="http server started" addr=0.0.0.0:8080
+time=2026-05-27T11:28:00.775+03:00 level=ERROR msg="http server stopped" addr=0.0.0.0:8080 err="listen tcp 0.0.0.0:8080: bind: address already in use"
+time=2026-05-27T11:38:11.086+03:00 level=INFO msg="shutting down"
+time=2026-05-27T11:38:13.897+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T11:38:13.897+03:00 level=INFO msg="http server started" addr=0.0.0.0:8080
+time=2026-05-27T11:38:13.898+03:00 level=ERROR msg="http server stopped" addr=0.0.0.0:8080 err="listen tcp 0.0.0.0:8080: bind: address already in use"
+time=2026-05-27T11:38:23.528+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:38:23.528+03:00 level=INFO msg="http server started" addr=0.0.0.0:8080
+time=2026-05-27T11:38:23.528+03:00 level=ERROR msg="http server stopped" addr=0.0.0.0:8080 err="listen tcp 0.0.0.0:8080: bind: address already in use"
+time=2026-05-27T11:46:51.903+03:00 level=INFO msg="blitz add user request" server_id=1 username=testuserpanel1 traffic_limit_gb=0 expiration_days=0
+time=2026-05-27T11:46:53.435+03:00 level=INFO msg="user added in blitz" server_id=1 username=testuserpanel1
+time=2026-05-27T11:46:53.439+03:00 level=INFO msg="user saved locally" server_id=1 username=testuserpanel1 sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9
+time=2026-05-27T11:46:53.439+03:00 level=INFO msg="blitz add user request" server_id=2 username=testuserpanel1 traffic_limit_gb=0 expiration_days=0
+time=2026-05-27T11:46:55.058+03:00 level=INFO msg="user added in blitz" server_id=2 username=testuserpanel1
+time=2026-05-27T11:46:55.062+03:00 level=INFO msg="user saved locally" server_id=2 username=testuserpanel1 sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9
+time=2026-05-27T11:48:35.805+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T11:48:35.805+03:00 level=INFO msg="http server started" addr=[::]:8787
+time=2026-05-27T11:48:38.363+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:15:22.216+03:00 level=INFO msg="panel started" log_path=./panel.log sync_interval=30s
+time=2026-05-27T12:15:22.216+03:00 level=INFO msg="http server started" addr=[::]:8787
+time=2026-05-27T12:15:24.769+03:00 level=INFO msg="shutting down"
+time=2026-05-27T12:15:26.804+03:00 level=INFO msg="traffic sync worker started" interval=30s log_path=./panel.log
+time=2026-05-27T12:15:26.805+03:00 level=INFO msg="http server failed: listen 0.0.0.0:8787: listen tcp 0.0.0.0:8787: bind: address already in use (try HTTP_ADDR=0.0.0.0:8787)"
+time=2026-05-27T12:16:01.385+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:16:02.311+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:16:13.291+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:16:20.255+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:16:28.449+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:19:59.193+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:20:03.638+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2
+time=2026-05-27T12:20:10.027+03:00 level=INFO msg="subscription built" sub_token=ITmDCiCY8TDW5wyw0VbwEgN7RIuvQXT9 username=testuserpanel1 uri_count=2

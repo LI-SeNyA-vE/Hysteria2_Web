@@ -22,6 +22,7 @@ type App struct {
 	DB         *gorm.DB
 	ServerSvc  *service.ServerService
 	BlitzSvc   *service.BlitzService
+	SubSvc     *service.SubscriptionService
 	ServerRepo *repository.ServerRepository
 	UserRepo   *repository.UserRepository
 }
@@ -55,15 +56,21 @@ func OpenWithLogger(dbPath string, panelLogger *slog.Logger) (*App, error) {
 		panelLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 	blitzSvc := service.NewBlitzService(registry, userRepo, panelLogger)
+	subSvc := service.NewSubscriptionService(userRepo, serverSvc, panelLogger)
 
 	if err := serverSvc.LoadRegistry(context.Background()); err != nil {
 		return nil, err
+	}
+
+	if _, err := blitzSvc.BackfillSubTokens(); err != nil {
+		return nil, fmt.Errorf("backfill sub tokens: %w", err)
 	}
 
 	return &App{
 		DB:         db,
 		ServerSvc:  serverSvc,
 		BlitzSvc:   blitzSvc,
+		SubSvc:     subSvc,
 		ServerRepo: serverRepo,
 		UserRepo:   userRepo,
 	}, nil

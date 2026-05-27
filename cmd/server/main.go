@@ -8,17 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"hysteria2-web/internal/blitz"
+	"hysteria2-web/internal/app"
 	"hysteria2-web/internal/config"
-	"hysteria2-web/internal/domain/server"
-	"hysteria2-web/internal/domain/user"
+	"hysteria2-web/internal/httpapi"
 	applog "hysteria2-web/internal/log"
-	"hysteria2-web/internal/repository"
-	"hysteria2-web/internal/service"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -34,45 +27,36 @@ func main() {
 	defer closeLog.Close()
 	slog.SetDefault(fileLogger)
 
-	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	a, err := app.OpenWithLogger(cfg.DBPath, fileLogger)
 	if err != nil {
-		log.Fatalf("open database: %v", err)
+		log.Fatalf("open app: %v", err)
 	}
-
-	if err = db.AutoMigrate(&server.Server{}, &user.User{}); err != nil {
-		log.Fatalf("migrate database: %v", err)
-	}
-
-	serverRepo := repository.NewServerRepository(db)
-	userRepo := repository.NewUserRepository(db)
-	registry := blitz.NewRegistry()
-
-	serverSvc := service.NewServerService(serverRepo, registry)
-	blitzSvc := service.NewBlitzService(registry, userRepo, fileLogger)
+	defer a.Close()
 
 	ctx := context.Background()
-	if err = bootstrapDefaultServer(ctx, cfg, serverSvc, serverRepo); err != nil {
+	if err = bootstrapDefaultServer(ctx, cfg, a); err != nil {
 		log.Fatalf("bootstrap default server: %v", err)
-	}
-	if err = serverSvc.LoadRegistry(ctx); err != nil {
-		log.Fatalf("load blitz registry: %v", err)
 	}
 
 	workerCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	blitzSvc.StartTrafficSyncWorker(workerCtx, cfg.SyncInterval)
+	a.BlitzSvc.StartTrafficSyncWorker(workerCtx, cfg.SyncInterval)
 	fileLogger.Info("traffic sync worker started", "interval", cfg.SyncInterval, "log_path", cfg.LogPath)
+
+	listenAddr, err := httpapi.Start(cfg.HTTPAddr, a, fileLogger)
+	if err != nil {
+		log.Fatalf("http server failed: %v (try HTTP_ADDR=0.0.0.0:8787)", err)
+	}
+	fileLogger.Info("http server started", "addr", listenAddr)
 
 	<-waitForShutdown()
 	cancel()
 	fileLogger.Info("shutting down")
 }
 
-func bootstrapDefaultServer(ctx context.Context, cfg config.Config, serverSvc *service.ServerService, serverRepo server.Repository) error {
-	servers, err := serverRepo.List()
+func bootstrapDefaultServer(ctx context.Context, cfg config.Config, a *app.App) error {
+	servers, err := a.ServerRepo.List()
 	if err != nil {
 		return err
 	}
@@ -80,11 +64,11 @@ func bootstrapDefaultServer(ctx context.Context, cfg config.Config, serverSvc *s
 		return nil
 	}
 	if cfg.BlitzBaseURL == "" || cfg.BlitzAPIKey == "" {
-		slog.Warn("no servers in database and BLITZ_BASE_URL/BLITZ_API_KEY not set; add servers via ServerService.CreateServer")
+		slog.Warn("no servers in database and BLITZ_BASE_URL/BLITZ_API_KEY not set; add servers via panel")
 		return nil
 	}
 
-	_, err = serverSvc.CreateServer(ctx, cfg.DefaultName, cfg.BlitzBaseURL, cfg.BlitzAPIKey)
+	_, err = a.ServerSvc.CreateServer(ctx, cfg.DefaultName, cfg.BlitzBaseURL, cfg.BlitzAPIKey)
 	if err != nil {
 		return err
 	}
