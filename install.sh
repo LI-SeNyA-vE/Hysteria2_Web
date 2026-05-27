@@ -14,7 +14,9 @@
 #   PANEL_SUB_DOMAIN     https://sub.example.com
 #   PANEL_SUB_PATH       subtoken
 #   PANEL_HTTP_ADDR      127.0.0.1:8787
+#   PANEL_CERT_EMAIL     email для Let's Encrypt (опционально)
 #   PANEL_FORCE=1        переустановить без вопросов
+#   PANEL_SKIP_NGINX=1   не трогать nginx (Docker-тест)
 #   PANEL_SKIP_SYSTEMD=1 пропустить systemd (локальный Docker-тест)
 
 set -euo pipefail
@@ -25,6 +27,7 @@ PANEL_INSTALL_DIR="${PANEL_INSTALL_DIR:-/opt/hysteria2-panel}"
 PANEL_SUB_DOMAIN="${PANEL_SUB_DOMAIN:-}"
 PANEL_SUB_PATH="${PANEL_SUB_PATH:-subtoken}"
 PANEL_HTTP_ADDR="${PANEL_HTTP_ADDR:-127.0.0.1:8787}"
+PANEL_CERT_EMAIL="${PANEL_CERT_EMAIL:-}"
 PANEL_SERVICE="${PANEL_SERVICE:-hysteria2-panel}"
 PANEL_REPO="${PANEL_REPO:-https://github.com/${PANEL_GITHUB}.git}"
 PANEL_RELEASE_BASE="${PANEL_RELEASE_BASE:-https://github.com/${PANEL_GITHUB}/releases/latest/download}"
@@ -307,17 +310,245 @@ EOF
     fi
 }
 
-add_alias() {
-    local line="alias hvpn='cd ${PANEL_INSTALL_DIR} && ./panel -config ${PANEL_INSTALL_DIR}/panel.json'"
-    local rc="/root/.bashrc"
+PANEL_NGINX_SNIPPET="/etc/nginx/snippets/hysteria2-panel.conf"
+PANEL_NGINX_SITE="/etc/nginx/sites-available/hysteria2-panel.conf"
 
-    log_info "Alias hvpn → меню панели"
-    if [[ -f "$rc" ]] && grep -q "alias hvpn=" "$rc"; then
-        log_info "Alias hvpn уже есть"
+parse_sub_host() {
+    local url="${1:-$PANEL_SUB_DOMAIN}"
+    url="${url#https://}"
+    url="${url#http://}"
+    url="${url%%/*}"
+    echo "${url%%:*}"
+}
+
+escape_regex() {
+    echo "$1" | sed 's/[.[\*^$()+?{|]/\\&/g'
+}
+
+panel_upstream() {
+    local addr="${PANEL_HTTP_ADDR}"
+    addr="${addr#http://}"
+    addr="${addr#https://}"
+    if [[ "$addr" == 0.0.0.0:* ]]; then
+        addr="127.0.0.1:${addr#*:}"
+    fi
+    echo "$addr"
+}
+
+install_nginx_packages() {
+    if ! command -v apt-get >/dev/null 2>&1; then
+        log_warning "apt не найден — nginx не установлен автоматически"
+        return 1
+    fi
+    log_info "Установка nginx + certbot..."
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx certbot python3-certbot-nginx
+    systemctl enable nginx
+    systemctl start nginx
+    log_success "nginx установлен"
+}
+
+write_nginx_snippet() {
+    local upstream
+    upstream="$(panel_upstream)"
+    log_info "Nginx snippet → ${PANEL_NGINX_SNIPPET}"
+
+    mkdir -p /etc/nginx/snippets
+    cat >"${PANEL_NGINX_SNIPPET}" <<EOF
+# Hysteria2 VPN Panel — подписки (install.sh)
+location /${PANEL_SUB_PATH}/ {
+    proxy_pass http://${upstream};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+}
+
+location = /healthz {
+    proxy_pass http://${upstream}/healthz;
+}
+EOF
+    log_success "Snippet записан (${PANEL_SUB_PATH}/ → http://${upstream})"
+}
+
+find_nginx_server_conf() {
+    local host="$1"
+    local host_re f
+    host_re="$(escape_regex "$host")"
+    for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*; do
+        [[ -f "$f" ]] || continue
+        [[ "$f" == *hysteria2-panel* ]] && continue
+        if grep -qE "server_name[[:space:]].*${host_re}" "$f" 2>/dev/null; then
+            echo "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
+merge_nginx_snippet() {
+    local host="$1"
+    local host_re conf
+    host_re="$(escape_regex "$host")"
+    conf="$(find_nginx_server_conf "$host")" || return 1
+
+    if grep -q "${PANEL_NGINX_SNIPPET}" "$conf"; then
+        log_info "Snippet уже подключён в ${conf}"
         return 0
     fi
-    echo "$line" >>"$rc"
-    log_success "Добавлен alias hvpn в ${rc}"
+
+    cp -a "$conf" "${conf}.bak.hysteria2-panel"
+    sed -i "/server_name[[:space:]].*${host_re}/a\\    include ${PANEL_NGINX_SNIPPET};" "$conf"
+    log_success "Snippet добавлен в ${conf} (бэкап: ${conf}.bak.hysteria2-panel)"
+    return 0
+}
+
+write_nginx_standalone_site() {
+    local host="$1"
+    log_info "Создание ${PANEL_NGINX_SITE} для ${host}..."
+
+    cat >"${PANEL_NGINX_SITE}" <<EOF
+# Managed by hysteria2-panel install.sh
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${host};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    include ${PANEL_NGINX_SNIPPET};
+}
+EOF
+
+    ln -sf "${PANEL_NGINX_SITE}" /etc/nginx/sites-enabled/hysteria2-panel.conf
+    log_success "Сайт ${PANEL_NGINX_SITE} включён"
+}
+
+nginx_has_ssl_for_host() {
+    local host="$1"
+    local conf
+    conf="$(find_nginx_server_conf "$host")" || conf=""
+    if [[ -n "$conf" ]] && grep -q "ssl_certificate" "$conf" 2>/dev/null; then
+        return 0
+    fi
+    if [[ -f "${PANEL_NGINX_SITE}" ]] && grep -q "ssl_certificate" "${PANEL_NGINX_SITE}" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+run_certbot() {
+    local host="$1"
+    local certbot_args=(--nginx -d "$host" --non-interactive --agree-tos --redirect)
+
+    if [[ -n "${PANEL_CERT_EMAIL}" ]]; then
+        certbot_args+=(--email "${PANEL_CERT_EMAIL}")
+    else
+        certbot_args+=(--register-unsafely-without-email)
+    fi
+
+    log_info "Let's Encrypt для ${host}..."
+    if certbot "${certbot_args[@]}"; then
+        log_success "SSL-сертификат получен"
+    else
+        log_warning "certbot не смог получить сертификат — проверьте DNS и порт 80"
+        return 1
+    fi
+}
+
+reload_nginx() {
+    nginx -t
+    systemctl reload nginx
+    log_success "nginx перезагружен"
+}
+
+verify_public_health() {
+    local host="$1"
+    local code
+
+    if curl -fsS --max-time 10 "https://${host}/healthz" >/dev/null 2>&1; then
+        log_success "Публично: https://${host}/healthz"
+        return 0
+    fi
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://${host}/healthz" 2>/dev/null || echo 000)"
+    if [[ "$code" == "200" ]]; then
+        log_warning "Работает по HTTP (без SSL): http://${host}/healthz"
+        return 0
+    fi
+    log_warning "Снаружи /healthz пока недоступен — проверьте DNS и firewall (80/443)"
+    return 1
+}
+
+install_nginx() {
+    if [[ "${PANEL_SKIP_NGINX:-0}" == "1" ]]; then
+        log_warning "PANEL_SKIP_NGINX=1 — nginx пропущен"
+        return 0
+    fi
+
+    if [[ -z "${PANEL_SUB_DOMAIN}" ]]; then
+        log_warning "PANEL_SUB_DOMAIN пуст — nginx не настраиваем (задайте домен и переустановите)"
+        return 0
+    fi
+
+    local host
+    host="$(parse_sub_host)"
+    if [[ -z "$host" ]]; then
+        log_warning "Не удалось разобрать домен из PANEL_SUB_DOMAIN=${PANEL_SUB_DOMAIN}"
+        return 0
+    fi
+
+    if [[ "${PANEL_SUB_DOMAIN}" == *":"* ]]; then
+        log_warning "В sub_domain указан порт — nginx настраивает только 443. Используйте домен без порта или правьте nginx вручную."
+    fi
+
+    install_nginx_packages || return 0
+    write_nginx_snippet
+
+    if merge_nginx_snippet "$host"; then
+        log_info "Подключено к существующему nginx (Blitz/другой сайт)"
+    else
+        log_info "Сайт для ${host} не найден — создаём отдельный vhost"
+        write_nginx_standalone_site "$host"
+    fi
+
+    reload_nginx
+
+    if ! nginx_has_ssl_for_host "$host"; then
+        run_certbot "$host" || true
+        reload_nginx 2>/dev/null || true
+    else
+        log_info "SSL для ${host} уже есть — certbot пропущен"
+    fi
+
+    verify_public_health "$host" || true
+}
+
+add_alias() {
+    local panel_bin="${PANEL_INSTALL_DIR}/panel"
+    local panel_cfg="${PANEL_INSTALL_DIR}/panel.json"
+    local hvpn_bin="/usr/local/bin/hvpn"
+
+    log_info "Команда hvpn → меню панели"
+
+    cat >"$hvpn_bin" <<EOF
+#!/usr/bin/env bash
+cd "${PANEL_INSTALL_DIR}" || exit 1
+exec "${panel_bin}" -config "${panel_cfg}" "\$@"
+EOF
+    chmod +x "$hvpn_bin"
+    log_success "Установлено: ${hvpn_bin}"
+
+    local line="alias hvpn='cd ${PANEL_INSTALL_DIR} && ./panel -config ${panel_cfg}'"
+    local rc="/root/.bashrc"
+    if [[ -f "$rc" ]] && grep -q "alias hvpn=" "$rc"; then
+        log_info "Alias hvpn уже есть в ${rc}"
+    else
+        echo "$line" >>"$rc"
+        log_success "Alias hvpn добавлен в ${rc}"
+    fi
 }
 
 health_url() {
@@ -334,15 +565,17 @@ print_summary() {
     echo "  Служба:   systemctl status ${PANEL_SERVICE}"
     echo "  Лог:      tail -f ${PANEL_INSTALL_DIR}/panel.log"
     echo "  Health:   curl -fsS $(health_url)"
-    echo "  Меню:     hvpn   (или cd ${PANEL_INSTALL_DIR} && ./panel)"
+    echo "  Меню:     hvpn"
+    echo "            (или: cd ${PANEL_INSTALL_DIR} && ./panel -config panel.json)"
     echo
     if [[ -z "${PANEL_SUB_DOMAIN}" ]]; then
         log_warning "sub_domain пуст — задайте в меню (п. 11), затем: systemctl restart ${PANEL_SERVICE}"
     else
         log_info "Подписка: ${PANEL_SUB_DOMAIN}/${PANEL_SUB_PATH}/{SubToken}"
+        if [[ "${PANEL_SKIP_NGINX:-0}" != "1" ]]; then
+            log_info "Nginx: https://$(parse_sub_host)/healthz  |  /${PANEL_SUB_PATH}/ → panel"
+        fi
     fi
-    echo
-    log_info "Nginx: location /${PANEL_SUB_PATH}/ → proxy_pass http://127.0.0.1:8787;"
     echo
 }
 
@@ -378,6 +611,7 @@ main() {
     fi
 
     add_alias
+    install_nginx
     print_summary
     run_menu
 }

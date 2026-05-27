@@ -62,6 +62,7 @@ docker run --rm \
         export PANEL_SUB_PATH=subtoken
         export PANEL_FORCE=1
         export PANEL_SKIP_SYSTEMD=1
+        export PANEL_SKIP_NGINX=1
         rm -rf "${PANEL_INSTALL_DIR}"
         bash /src/install.sh
 
