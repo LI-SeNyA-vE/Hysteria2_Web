@@ -1,6 +1,6 @@
 {
-  "db_path": "./panel.db",
-  "log_path": "./panel.log",
+  "db_path": "/opt/hysteria2-panel/panel.db",
+  "log_path": "/opt/hysteria2-panel/panel.log",
   "http_addr": "0.0.0.0:8787",
   "sync_interval": "30s",
   "sub_domain": "",

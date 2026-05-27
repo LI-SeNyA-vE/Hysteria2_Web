@@ -23,7 +23,7 @@ func initInputSignals() {
 		for range ch {
 			if onMainMenu.Load() {
 				clearScreen()
-				fmt.Println("\nВыход.")
+				termPrintln("\nВыход.")
 				os.Exit(0)
 			}
 		}
@@ -36,8 +36,9 @@ func setMainMenu(active bool) {
 
 func readLine(reader *bufio.Reader, prompt string) (string, error) {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
+		restoreTerminal()
 		if prompt != "" {
-			fmt.Print(prompt)
+			termPrint(prompt)
 		}
 		line, err := readLineTTY()
 		return strings.TrimSpace(line), err
@@ -74,25 +75,25 @@ func readLineTTY() (string, error) {
 
 		switch b[0] {
 		case 3: // Ctrl+C
-			fmt.Println("^C")
+			termPrintln("^C")
 			if onMainMenu.Load() {
 				clearScreen()
-				fmt.Println("Выход.")
+				termPrintln("Выход.")
 				os.Exit(0)
 			}
 			return "", ErrInputCancelled
 		case '\r', '\n':
-			fmt.Println()
+			termPrintln()
 			return string(buf), nil
 		case 127, 8: // backspace
 			if len(buf) > 0 {
 				buf = buf[:len(buf)-1]
-				fmt.Print("\b \b")
+				termPrint("\b \b")
 			}
 		default:
 			if b[0] >= 32 && b[0] < 127 {
 				buf = append(buf, b[0])
-				fmt.Print(string([]byte{b[0]}))
+				termPrint(string([]byte{b[0]}))
 			}
 		}
 	}

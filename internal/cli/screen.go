@@ -8,47 +8,48 @@ import (
 )
 
 func clearScreen() {
+	restoreTerminal()
 	fmt.Fprint(os.Stdout, "\033[2J\033[H")
 }
 
 func printScreenHeader(title string) {
-	fmt.Println("========================================")
-	fmt.Println("         Hysteria2 VPN Panel")
-	fmt.Println("========================================")
+	termPrintln("========================================")
+	termPrintln("         Hysteria2 VPN Panel")
+	termPrintln("========================================")
 	if title != "" {
-		fmt.Printf("  %s\n", title)
-		fmt.Println("----------------------------------------")
+		termPrintf("  %s\n", title)
+		termPrintln("----------------------------------------")
 	}
 }
 
 func printMenu(cfg config.Config, serviceOK bool) {
 	printScreenHeader("")
 	if serviceOK {
-		fmt.Println("  Служба: работает (HTTP + sync)")
+		termPrintln("  Служба: работает (HTTP + sync)")
 	} else {
-		fmt.Println("  Служба: не запущена → panel serve")
+		termPrintln("  Служба: не запущена → panel serve")
 	}
-	fmt.Printf("  Sync: %s  |  Log: %s\n", cfg.SyncInterval, cfg.LogPath)
-	fmt.Printf("  Sub: %s/%s/{SubToken}\n", cfg.SubscriptionPublicBase(), cfg.SubscriptionPath())
-	fmt.Println("  (не username! URL — в п. 10)")
+	termPrintf("  Sync: %s  |  Log: %s\n", cfg.SyncInterval, cfg.LogPath)
+	termPrintf("  Sub: %s/%s/{SubToken}\n", cfg.SubscriptionPublicBase(), cfg.SubscriptionPath())
+	termPrintln("  (не username! URL — в п. 10)")
 	if cfg.UsingLocalSubscriptionURL() {
-		fmt.Println("  (телефон: sub_domain в п. 11 — http://IP:8787)")
+		termPrintln("  (телефон: sub_domain в п. 11 — http://IP:8787)")
 	}
-	fmt.Println("  Ctrl+C — отмена (в меню — выход)")
-	fmt.Println("----------------------------------------")
-	fmt.Println("  1. Список серверов")
-	fmt.Println("  2. Добавить сервер")
-	fmt.Println("  3. Удалить сервер")
-	fmt.Println("  4. Статус сервера")
-	fmt.Println("  5. Список пользователей")
-	fmt.Println("  6. Добавить пользователя")
-	fmt.Println("  7. Kick пользователя")
-	fmt.Println("  8. URI подключения")
-	fmt.Println("  9. Синхронизация трафика")
-	fmt.Println(" 10. QR подписки")
-	fmt.Println(" 11. Настройки")
-	fmt.Println("  0. Выход")
-	fmt.Println("========================================")
+	termPrintln("  Ctrl+C — отмена (в меню — выход)")
+	termPrintln("----------------------------------------")
+	termPrintln("  1. Список серверов")
+	termPrintln("  2. Добавить сервер")
+	termPrintln("  3. Удалить сервер")
+	termPrintln("  4. Статус сервера")
+	termPrintln("  5. Список пользователей")
+	termPrintln("  6. Добавить пользователя")
+	termPrintln("  7. Kick пользователя")
+	termPrintln("  8. URI подключения")
+	termPrintln("  9. Синхронизация трафика")
+	termPrintln(" 10. QR подписки")
+	termPrintln("  11. Настройки")
+	termPrintln("  0. Выход")
+	termPrintln("========================================")
 }
 
 func menuTitle(choice string) string {

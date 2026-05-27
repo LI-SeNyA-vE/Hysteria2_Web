@@ -92,6 +92,10 @@ func Load(path string) (Config, error) {
 		}
 	}
 
+	if err := resolvePathsRelativeToConfig(&cfg, path); err != nil {
+		return Config{}, fmt.Errorf("config %s: %w", path, err)
+	}
+
 	global = cfg
 	if created {
 		abs, _ := filepath.Abs(path)
@@ -203,4 +207,23 @@ func Prepare(cfg Config) (Config, error) {
 	}
 	cfg.SubPath = path
 	return cfg, nil
+}
+
+func resolvePathsRelativeToConfig(cfg *Config, configFilePath string) error {
+	baseDir, err := filepath.Abs(filepath.Dir(configFilePath))
+	if err != nil {
+		return fmt.Errorf("resolve config dir: %w", err)
+	}
+
+	for _, target := range []*string{&cfg.DBPath, &cfg.LogPath} {
+		if *target == "" || filepath.IsAbs(*target) {
+			continue
+		}
+		abs, err := filepath.Abs(filepath.Join(baseDir, *target))
+		if err != nil {
+			return fmt.Errorf("resolve path %q: %w", *target, err)
+		}
+		*target = abs
+	}
+	return nil
 }

@@ -47,7 +47,7 @@ func TestLoadCreatesDefaultFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.DBPath != "./panel.db" {
+	if cfg.DBPath != filepath.Join(dir, "panel.db") {
 		t.Fatalf("DBPath = %q", cfg.DBPath)
 	}
 	if cfg.SubPath != "sub" {
@@ -80,7 +80,7 @@ func TestLoadFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.DBPath != "./custom.db" {
+	if cfg.DBPath != filepath.Join(dir, "custom.db") {
 		t.Fatalf("DBPath = %q", cfg.DBPath)
 	}
 	if cfg.HTTPAddr != "0.0.0.0:9999" {

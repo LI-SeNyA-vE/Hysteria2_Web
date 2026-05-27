@@ -21,6 +21,7 @@ import (
 
 func RunInteractive(initial config.Config, configPath string) {
 	config.SetConfigPath(configPath)
+	initTerminal()
 	cfg := initial
 
 	for {
@@ -342,6 +343,9 @@ func interactiveAddServer(reader *bufio.Reader, a *app.App, ctx context.Context)
 		return err
 	}
 	fmt.Printf("Сервер создан: id=%d name=%s\n", srv.ID, srv.Name)
+	fmt.Println()
+	fmt.Println("Перезапустите службу, чтобы подписки и sync увидели сервер:")
+	fmt.Println("  systemctl restart hysteria2-panel")
 	return nil
 }
 
