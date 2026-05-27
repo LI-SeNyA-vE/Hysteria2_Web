@@ -86,13 +86,15 @@ func interactiveSubscriptionQR(reader *bufio.Reader, a *app.App, _ context.Conte
 	fmt.Println(url)
 	fmt.Println()
 	fmt.Println("⚠ В URL используется SubToken, а не username.")
-	fmt.Println("  Неверно: /sub/testuserpanel1")
-	fmt.Printf("  Верно:   /sub/%s\n", info.Token)
+	subPath := config.SubscriptionPath()
+	fmt.Printf("  Неверно: /%s/testuserpanel1\n", subPath)
+	fmt.Printf("  Верно:   /%s/%s\n", subPath, info.Token)
 	fmt.Println()
 
 	if config.UsingLocalSubscriptionURL() {
-		fmt.Println("Телефон не откроет 127.0.0.1 — задайте публичный адрес panel:")
-		fmt.Println("  export SUB_PUBLIC_URL=http://IP_ВАШЕГО_СЕРВЕРА:8080")
+		fmt.Println("Телефон не откроет 127.0.0.1 — задайте sub_domain в настройках (п. 11):")
+		fmt.Println(`  "sub_domain": "http://IP_ВАШЕГО_СЕРВЕРА:8787"`)
+		fmt.Println(`  "sub_path": "sub"`)
 		fmt.Println()
 	} else {
 		fmt.Printf("Публичный адрес: %s\n", config.SubscriptionPublicBase())

@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/service"
 
 	"github.com/go-chi/chi/v5"
@@ -45,6 +47,7 @@ func (h *SubHandler) serve(w http.ResponseWriter, r *http.Request, token string)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrSubscriptionNotFound):
+			subPath := config.Get().SubscriptionPath()
 			h.logger.Warn("subscription not found",
 				"sub_token", token,
 				"path", r.URL.Path,
@@ -52,7 +55,7 @@ func (h *SubHandler) serve(w http.ResponseWriter, r *http.Request, token string)
 			)
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			http.Error(w, "404: token not found.\n\n"+
-				"URL must be /sub/{SubToken}, not /sub/{username}.\n"+
+				fmt.Sprintf("URL must be /%s/{SubToken}, not /%s/{username}.\n", subPath, subPath)+
 				"Get the correct URL from panel: item 10 (QR subscription).\n", http.StatusNotFound)
 		case errors.Is(err, service.ErrSubscriptionForbidden):
 			http.Error(w, "Forbidden", http.StatusForbidden)

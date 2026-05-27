@@ -33,7 +33,7 @@ func Open(dbPath string) (*App, error) {
 
 func OpenWithLogger(dbPath string, panelLogger *slog.Logger) (*App, error) {
 	if dbPath == "" {
-		dbPath = config.EnvOrDefault("DB_PATH", "./panel.db")
+		dbPath = config.Default().DBPath
 	}
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
@@ -82,8 +82,4 @@ func (a *App) Close() error {
 		return err
 	}
 	return sqlDB.Close()
-}
-
-func DBPathFlag() string {
-	return os.Getenv("DB_PATH")
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"hysteria2-web/internal/app"
+	"hysteria2-web/internal/config"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -26,7 +27,8 @@ func NewRouter(a *app.App, logger *slog.Logger) http.Handler {
 	})
 
 	sub := NewSubHandler(a.SubSvc, logger)
-	r.Get("/sub/{token}", sub.ServeHTTP)
-	r.Get("/sub", sub.ServeQuery)
+	subPath := config.Get().SubscriptionPath()
+	r.Get("/"+subPath+"/{token}", sub.ServeHTTP)
+	r.Get("/"+subPath, sub.ServeQuery)
 	return r
 }

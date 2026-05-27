@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"log/slog"
 	"os"
@@ -15,7 +16,10 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load()
+	configPath := flag.String("config", config.DefaultPath, "path to config file")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,47 +37,21 @@ func main() {
 	}
 	defer a.Close()
 
-	ctx := context.Background()
-	if err = bootstrapDefaultServer(ctx, cfg, a); err != nil {
-		log.Fatalf("bootstrap default server: %v", err)
-	}
-
 	workerCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	a.BlitzSvc.StartTrafficSyncWorker(workerCtx, cfg.SyncInterval)
 	fileLogger.Info("traffic sync worker started", "interval", cfg.SyncInterval, "log_path", cfg.LogPath)
 
-	listenAddr, err := httpapi.Start(cfg.HTTPAddr, a, fileLogger)
+	_, listenAddr, err := httpapi.Start(cfg.HTTPAddr, a, fileLogger)
 	if err != nil {
-		log.Fatalf("http server failed: %v (try HTTP_ADDR=0.0.0.0:8787)", err)
+		log.Fatalf("http server failed: %v (измените http_addr в %s)", err, *configPath)
 	}
 	fileLogger.Info("http server started", "addr", listenAddr)
 
 	<-waitForShutdown()
 	cancel()
 	fileLogger.Info("shutting down")
-}
-
-func bootstrapDefaultServer(ctx context.Context, cfg config.Config, a *app.App) error {
-	servers, err := a.ServerRepo.List()
-	if err != nil {
-		return err
-	}
-	if len(servers) > 0 {
-		return nil
-	}
-	if cfg.BlitzBaseURL == "" || cfg.BlitzAPIKey == "" {
-		slog.Warn("no servers in database and BLITZ_BASE_URL/BLITZ_API_KEY not set; add servers via panel")
-		return nil
-	}
-
-	_, err = a.ServerSvc.CreateServer(ctx, cfg.DefaultName, cfg.BlitzBaseURL, cfg.BlitzAPIKey)
-	if err != nil {
-		return err
-	}
-	slog.Info("default blitz server created", "name", cfg.DefaultName)
-	return nil
 }
 
 func waitForShutdown() <-chan struct{} {

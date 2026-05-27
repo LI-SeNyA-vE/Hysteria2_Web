@@ -3,13 +3,13 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"hysteria2-web/internal/app"
 	"hysteria2-web/internal/blitz"
@@ -20,47 +20,62 @@ import (
 	applog "hysteria2-web/internal/log"
 )
 
-func RunInteractive() {
-	db := config.EnvOrDefault("DB_PATH", "./panel.db")
-	logPath := config.EnvOrDefault("LOG_PATH", "./panel.log")
+func RunInteractive(initial config.Config, configPath string) {
+	config.SetConfigPath(configPath)
+	cfg := initial
 
-	logger, closeLog, err := applog.Open(logPath)
+	for {
+		if !runPanelSession(cfg) {
+			return
+		}
+
+		loaded, err := config.Load(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Ошибка перезагрузки конфигурации: %v\n", err)
+			os.Exit(1)
+		}
+		cfg = loaded
+		clearScreen()
+		fmt.Println("Панель перезагружена с новыми настройками.")
+		fmt.Println()
+	}
+}
+
+func runPanelSession(cfg config.Config) (reload bool) {
+	config.Set(cfg)
+
+	logger, closeLog, err := applog.Open(cfg.LogPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Ошибка открытия лога: %v\n", err)
 		os.Exit(1)
 	}
 	defer closeLog.Close()
 
-	a, err := app.OpenWithLogger(db, logger)
+	a, err := app.OpenWithLogger(cfg.DBPath, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Ошибка: %v\n", err)
 		os.Exit(1)
 	}
 	defer a.Close()
 
-	intervalStr := config.EnvOrDefault("SYNC_INTERVAL", "30s")
-	syncInterval, err := time.ParseDuration(intervalStr)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Ошибка SYNC_INTERVAL: %v\n", err)
-		os.Exit(1)
-	}
+	syncInterval := cfg.SyncInterval
 	workerCtx, cancelWorker := context.WithCancel(context.Background())
 	defer cancelWorker()
 	a.BlitzSvc.StartTrafficSyncWorker(workerCtx, syncInterval)
-	logger.Info("panel started", "log_path", logPath, "sync_interval", syncInterval.String())
+	logger.Info("panel started", "log_path", cfg.LogPath, "sync_interval", syncInterval.String())
 
-	httpAddr := config.EnvOrDefault("HTTP_ADDR", "0.0.0.0:8787")
-	httpListen, httpErr := httpapi.Start(httpAddr, a, logger)
+	httpAddr := cfg.HTTPAddr
+	var httpServer *httpapi.HTTPServer
+	httpServer, listenAddr, httpErr := httpapi.Start(httpAddr, a, logger)
 	if httpErr != nil {
 		fmt.Fprintf(os.Stderr, "\n*** HTTP подписки НЕ ЗАПУЩЕН: %v ***\n", httpErr)
-		fmt.Fprintf(os.Stderr, "Ссылка /sub/... не будет работать. Освободите порт или задайте другой:\n")
-		fmt.Fprintf(os.Stderr, "  export HTTP_ADDR=0.0.0.0:8787\n\n")
+		fmt.Fprintf(os.Stderr, "Ссылка подписки не будет работать. Освободите порт или измените http_addr в настройках (п. 11)\n\n")
 		logger.Error("http server failed to start", "addr", httpAddr, "err", httpErr)
 		httpAddr = ""
 	} else {
-		logger.Info("http server started", "addr", httpListen)
+		logger.Info("http server started", "addr", listenAddr)
 		fmt.Printf("HTTP подписки: %s  (проверка: curl %s/healthz)\n",
-			config.SubscriptionPublicBase(), config.SubscriptionPublicBase())
+			cfg.SubscriptionPublicBase(), cfg.SubscriptionPublicBase())
 		fmt.Println()
 	}
 
@@ -70,7 +85,7 @@ func RunInteractive() {
 
 	for {
 		clearScreen()
-		printMenu(syncInterval, logPath, httpDisplayAddr(httpAddr))
+		printMenu(syncInterval, cfg.LogPath, httpDisplayAddr(httpAddr))
 		setMainMenu(true)
 		choice, err := readLine(reader, "Выберите действие: ")
 		setMainMenu(false)
@@ -81,7 +96,9 @@ func RunInteractive() {
 		if choice == "0" || choice == "q" || choice == "exit" {
 			clearScreen()
 			fmt.Println("Выход.")
-			return
+			cancelWorker()
+			_ = httpServer.Stop()
+			return false
 		}
 
 		clearScreen()
@@ -114,8 +131,16 @@ func RunInteractive() {
 			actionErr = interactiveSync(reader, a, ctx)
 		case "10":
 			actionErr = interactiveSubscriptionQR(reader, a, ctx)
+		case "11":
+			actionErr = interactiveSettings(reader, cfg)
 		default:
 			fmt.Println("Неизвестный пункт меню.")
+		}
+
+		if errors.Is(actionErr, ErrReloadPanel) {
+			cancelWorker()
+			_ = httpServer.Stop()
+			return true
 		}
 
 		if isInputCancelled(actionErr) {

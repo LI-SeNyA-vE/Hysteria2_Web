@@ -25,10 +25,10 @@ func printScreenHeader(title string) {
 func printMenu(syncInterval time.Duration, logPath, httpAddr string) {
 	printScreenHeader("")
 	fmt.Printf("  Sync: %s  |  Log: %s\n", syncInterval, logPath)
-	fmt.Printf("  Sub: %s/sub/{SubToken}\n", config.SubscriptionPublicBase())
+	fmt.Printf("  Sub: %s/%s/{SubToken}\n", config.SubscriptionPublicBase(), config.SubscriptionPath())
 	fmt.Println("  (не username! URL — в п. 10)")
 	if config.UsingLocalSubscriptionURL() {
-		fmt.Println("  (телефон: export SUB_PUBLIC_URL=http://IP:8080)")
+		fmt.Println("  (телефон: sub_domain в п. 11 — http://IP:8787)")
 	}
 	fmt.Println("  Ctrl+C — отмена (в меню — выход)")
 	fmt.Println("----------------------------------------")
@@ -42,6 +42,7 @@ func printMenu(syncInterval time.Duration, logPath, httpAddr string) {
 	fmt.Println("  8. URI подключения")
 	fmt.Println("  9. Синхронизация трафика")
 	fmt.Println(" 10. QR подписки")
+	fmt.Println(" 11. Настройки")
 	fmt.Println("  0. Выход")
 	fmt.Println("========================================")
 }
@@ -68,6 +69,8 @@ func menuTitle(choice string) string {
 		return "Синхронизация трафика"
 	case "10":
 		return "QR подписки"
+	case "11":
+		return "Настройки"
 	default:
 		return ""
 	}

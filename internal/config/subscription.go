@@ -1,16 +1,32 @@
 package config
 
-import (
-	"os"
-	"strings"
-)
+import "strings"
 
 func SubscriptionPublicBase() string {
-	if v := strings.TrimSpace(os.Getenv("SUB_PUBLIC_URL")); v != "" {
+	return Get().SubscriptionPublicBase()
+}
+
+func SubscriptionURL(token string) string {
+	return Get().SubscriptionURL(token)
+}
+
+func SubscriptionPath() string {
+	return Get().SubscriptionPath()
+}
+
+func UsingLocalSubscriptionURL() bool {
+	return Get().UsingLocalSubscriptionURL()
+}
+
+func (c Config) SubscriptionPublicBase() string {
+	if v := strings.TrimSpace(c.SubDomain); v != "" {
 		return strings.TrimRight(v, "/")
 	}
 
-	addr := EnvOrDefault("HTTP_ADDR", "0.0.0.0:8787")
+	addr := c.HTTPAddr
+	if addr == "" {
+		addr = Default().HTTPAddr
+	}
 	if strings.HasPrefix(addr, ":") {
 		return "http://127.0.0.1" + addr
 	}
@@ -23,10 +39,17 @@ func SubscriptionPublicBase() string {
 	return "http://" + strings.TrimRight(addr, "/")
 }
 
-func SubscriptionURL(token string) string {
-	return SubscriptionPublicBase() + "/sub/" + token
+func (c Config) SubscriptionPath() string {
+	if c.SubPath == "" {
+		return defaultSubPath
+	}
+	return c.SubPath
 }
 
-func UsingLocalSubscriptionURL() bool {
-	return strings.TrimSpace(os.Getenv("SUB_PUBLIC_URL")) == ""
+func (c Config) SubscriptionURL(token string) string {
+	return c.SubscriptionPublicBase() + "/" + c.SubscriptionPath() + "/" + token
+}
+
+func (c Config) UsingLocalSubscriptionURL() bool {
+	return strings.TrimSpace(c.SubDomain) == ""
 }
