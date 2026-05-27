@@ -30,7 +30,7 @@ func printMenu(syncInterval time.Duration, logPath, httpAddr string) {
 	if config.UsingLocalSubscriptionURL() {
 		fmt.Println("  (телефон: export SUB_PUBLIC_URL=http://IP:8080)")
 	}
-	fmt.Println("  Ctrl+C — прервать ввод")
+	fmt.Println("  Ctrl+C — отмена (в меню — выход)")
 	fmt.Println("----------------------------------------")
 	fmt.Println("  1. Список серверов")
 	fmt.Println("  2. Добавить сервер")

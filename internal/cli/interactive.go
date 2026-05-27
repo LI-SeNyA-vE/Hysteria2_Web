@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -65,11 +66,17 @@ func RunInteractive() {
 
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
+	initInputSignals()
 
 	for {
 		clearScreen()
 		printMenu(syncInterval, logPath, httpDisplayAddr(httpAddr))
-		choice := strings.TrimSpace(readLine(reader, "Выберите действие: "))
+		setMainMenu(true)
+		choice, err := readLine(reader, "Выберите действие: ")
+		setMainMenu(false)
+		if isInputCancelled(err) {
+			continue
+		}
 
 		if choice == "0" || choice == "q" || choice == "exit" {
 			clearScreen()
@@ -96,7 +103,7 @@ func RunInteractive() {
 		case "4":
 			actionErr = interactiveServerStatus(reader, a, ctx)
 		case "5":
-			actionErr = interactiveListUsers(a, ctx)
+			actionErr = interactiveListUsers(reader, a, ctx)
 		case "6":
 			actionErr = interactiveAddUser(reader, a, ctx)
 		case "7":
@@ -111,26 +118,27 @@ func RunInteractive() {
 			fmt.Println("Неизвестный пункт меню.")
 		}
 
-		if actionErr != nil {
+		if isInputCancelled(actionErr) {
+			fmt.Println("Действие отменено.")
+		} else if actionErr != nil {
 			printFail(actionErr)
 		}
 
-		fmt.Println()
-		readLine(reader, "Нажмите Enter для продолжения...")
+		if !isInputCancelled(actionErr) {
+			fmt.Println()
+			if _, err := readLine(reader, "Нажмите Enter для продолжения..."); isInputCancelled(err) {
+				continue
+			}
+		}
 	}
-}
-
-func readLine(reader *bufio.Reader, prompt string) string {
-	if prompt != "" {
-		fmt.Print(prompt)
-	}
-	line, _ := reader.ReadString('\n')
-	return strings.TrimSpace(line)
 }
 
 func readRequired(reader *bufio.Reader, label string) (string, error) {
 	for {
-		v := readLine(reader, label+": ")
+		v, err := readLine(reader, label+": ")
+		if isInputCancelled(err) {
+			return "", err
+		}
 		if v != "" {
 			return v, nil
 		}
@@ -140,7 +148,10 @@ func readRequired(reader *bufio.Reader, label string) (string, error) {
 
 func readInt(reader *bufio.Reader, label string, defaultVal int) (int, error) {
 	for {
-		raw := readLine(reader, label+": ")
+		raw, err := readLine(reader, label+": ")
+		if isInputCancelled(err) {
+			return 0, err
+		}
 		if raw == "" && defaultVal >= 0 {
 			return defaultVal, nil
 		}
@@ -172,6 +183,15 @@ func printServers(servers []server.Server) {
 	_ = w.Flush()
 }
 
+type panelUserRow struct {
+	Username string
+	Servers  string
+	LimitGB  string
+	UsedGB   int
+	Active   string
+	Expires  string
+}
+
 type blitzUserRow struct {
 	ServerID   uint
 	ServerName string
@@ -183,12 +203,34 @@ type blitzUserRow struct {
 	Blocked    string
 }
 
+func printPanelUsers(rows []panelUserRow) {
+	if len(rows) == 0 {
+		fmt.Println("Пользователей панели нет.")
+		return
+	}
+	fmt.Println()
+	w := tabwriter.NewWriter(os.Stdout, 4, 8, 2, ' ', 0)
+	fmt.Fprintln(w, "USERNAME\tSERVERS\tLIMIT_GB\tUSED_GB\tACTIVE\tEXPIRES")
+	for _, r := range rows {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
+			r.Username, r.Servers, r.LimitGB, r.UsedGB, r.Active, r.Expires)
+	}
+	_ = w.Flush()
+}
+
+func formatUserExpires(u user.User) string {
+	if u.ExpiresAt.IsZero() {
+		return "—"
+	}
+	return u.ExpiresAt.Format("2006-01-02")
+}
+
 func printBlitzUsers(rows []blitzUserRow) {
 	if len(rows) == 0 {
 		fmt.Println("Пользователей нет.")
 		return
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(os.Stdout, 4, 8, 2, ' ', 0)
 	fmt.Fprintln(w, "SERVER\tUSERNAME\tLIMIT_GB\tUSED_GB\tACTIVE\tONLINE\tBLOCKED")
 	for _, r := range rows {
 		fmt.Fprintf(w, "%s\t%s\t%d\t%d\t%s\t%d\t%s\n",
@@ -219,7 +261,10 @@ func pickServerScope(reader *bufio.Reader, a *app.App, ctx context.Context) (all
 
 	fmt.Println("  1. Все серверы")
 	fmt.Println("  2. Один сервер")
-	choice := readLine(reader, "Выберите: ")
+	choice, err := readLine(reader, "Выберите: ")
+	if isInputCancelled(err) {
+		return false, 0, err
+	}
 
 	switch choice {
 	case "1":
@@ -294,7 +339,11 @@ func interactiveDeleteServer(reader *bufio.Reader, a *app.App, ctx context.Conte
 	if err != nil {
 		return err
 	}
-	confirm := strings.ToLower(readLine(reader, "Удалить сервер? (y/n): "))
+	confirm, err := readLine(reader, "Удалить сервер? (y/n): ")
+	if isInputCancelled(err) {
+		return err
+	}
+	confirm = strings.ToLower(confirm)
 	if confirm != "y" && confirm != "yes" && confirm != "д" && confirm != "да" {
 		fmt.Println("Отменено.")
 		return nil
@@ -327,7 +376,7 @@ func interactiveServerStatus(reader *bufio.Reader, a *app.App, ctx context.Conte
 	return nil
 }
 
-func interactiveListUsers(a *app.App, ctx context.Context) error {
+func interactiveListUsers(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	servers, err := a.ServerSvc.ListServers(ctx)
 	if err != nil {
 		return err
@@ -337,63 +386,191 @@ func interactiveListUsers(a *app.App, ctx context.Context) error {
 		return nil
 	}
 
+	fmt.Println("  1. Пользователи панели (созданные через панель)")
+	fmt.Println("  2. Все пользователи на сервере (Blitz)")
+	choice, err := readLine(reader, "Выберите: ")
+	if isInputCancelled(err) {
+		return err
+	}
+
+	switch choice {
+	case "1":
+		return listPanelUsers(a, ctx, servers)
+	case "2":
+		return listBlitzUsersOnServer(reader, a, ctx)
+	default:
+		return fmt.Errorf("неверный выбор")
+	}
+}
+
+func listPanelUsers(a *app.App, ctx context.Context, servers []server.Server) error {
 	localUsers, err := a.UserRepo.ListAll()
 	if err != nil {
 		return err
+	}
+	if len(localUsers) == 0 {
+		fmt.Println("Пользователей панели нет.")
+		return nil
+	}
+
+	serverNames := make(map[uint]string, len(servers))
+	for _, srv := range servers {
+		serverNames[srv.ID] = srv.Name
+	}
+
+	type agg struct {
+		servers    []string
+		limitGB    int
+		limitSet   bool
+		limitMixed bool
+		usedGB     int
+		allActive  bool
+		anyActive  bool
+		expires    string
+	}
+
+	byUser := make(map[string]*agg)
+	order := make([]string, 0)
+
+	for _, u := range localUsers {
+		srvName := serverNames[u.ServerID]
+		if srvName == "" {
+			srvName = fmt.Sprintf("id=%d", u.ServerID)
+		}
+
+		a, ok := byUser[u.Username]
+		if !ok {
+			a = &agg{allActive: true, expires: formatUserExpires(u)}
+			byUser[u.Username] = a
+			order = append(order, u.Username)
+		}
+		a.servers = append(a.servers, srvName)
+		a.usedGB += u.TrafficUsed
+		if u.IsActive {
+			a.anyActive = true
+		} else {
+			a.allActive = false
+		}
+		if !a.limitSet {
+			a.limitGB = u.TrafficLimit
+			a.limitSet = true
+		} else if a.limitGB != u.TrafficLimit {
+			a.limitMixed = true
+		}
+	}
+
+	sort.Strings(order)
+	rows := make([]panelUserRow, 0, len(order))
+	for _, username := range order {
+		a := byUser[username]
+		sort.Strings(a.servers)
+
+		active := "no"
+		if a.allActive {
+			active = "yes"
+		} else if a.anyActive {
+			active = "частично"
+		}
+
+		limit := strconv.Itoa(a.limitGB)
+		if a.limitMixed {
+			limit = "разн."
+		}
+
+		rows = append(rows, panelUserRow{
+			Username: username,
+			Servers:  strings.Join(a.servers, ", "),
+			LimitGB:  limit,
+			UsedGB:   a.usedGB,
+			Active:   active,
+			Expires:  a.expires,
+		})
+	}
+
+	printPanelUsers(rows)
+	return nil
+}
+
+func listBlitzUsersOnServer(reader *bufio.Reader, a *app.App, ctx context.Context) error {
+	serverID, err := pickServer(reader, a, ctx)
+	if err != nil {
+		return err
+	}
+
+	srv, err := a.ServerSvc.GetServer(ctx, serverID)
+	if err != nil {
+		return err
+	}
+
+	client, err := a.ServerSvc.GetClient(serverID)
+	if err != nil {
+		return fmt.Errorf("сервер %q: %w", srv.Name, err)
+	}
+	blitzUsers, err := client.ListUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("сервер %q: %w", srv.Name, err)
+	}
+
+	localByKey, err := localUsersByKey(a)
+	if err != nil {
+		return err
+	}
+
+	rows := blitzUsersToRows(*srv, blitzUsers, localByKey)
+	fmt.Printf("Пользователи на сервере %q (id=%d):\n\n", srv.Name, srv.ID)
+	printBlitzUsers(rows)
+	return nil
+}
+
+func localUsersByKey(a *app.App) (map[string]*user.User, error) {
+	localUsers, err := a.UserRepo.ListAll()
+	if err != nil {
+		return nil, err
 	}
 	localByKey := make(map[string]*user.User, len(localUsers))
 	for i := range localUsers {
 		key := fmt.Sprintf("%d:%s", localUsers[i].ServerID, localUsers[i].Username)
 		localByKey[key] = &localUsers[i]
 	}
+	return localByKey, nil
+}
 
-	var rows []blitzUserRow
-	for _, srv := range servers {
-		client, err := a.ServerSvc.GetClient(srv.ID)
-		if err != nil {
-			return fmt.Errorf("сервер %q: %w", srv.Name, err)
-		}
-		blitzUsers, err := client.ListUsers(ctx)
-		if err != nil {
-			return fmt.Errorf("сервер %q: %w", srv.Name, err)
-		}
-		for _, bu := range blitzUsers {
-			key := fmt.Sprintf("%d:%s", srv.ID, bu.Username)
-			local := localByKey[key]
+func blitzUsersToRows(srv server.Server, blitzUsers []blitz.UserInfo, localByKey map[string]*user.User) []blitzUserRow {
+	rows := make([]blitzUserRow, 0, len(blitzUsers))
+	for _, bu := range blitzUsers {
+		key := fmt.Sprintf("%d:%s", srv.ID, bu.Username)
+		local := localByKey[key]
 
-			limitGB := int(bu.MaxDownloadBytes / bytesPerGB)
-			usedGB := int(blitzUserBytes(bu) / bytesPerGB)
-			active := "yes"
-			blocked := "no"
-			if bu.Blocked {
-				blocked = "yes"
+		limitGB := int(bu.MaxDownloadBytes / bytesPerGB)
+		usedGB := int(blitzUserBytes(bu) / bytesPerGB)
+		active := "yes"
+		blocked := "no"
+		if bu.Blocked {
+			blocked = "yes"
+			active = "no"
+		}
+		if local != nil {
+			limitGB = local.TrafficLimit
+			usedGB = local.TrafficUsed
+			if local.IsActive {
+				active = "yes"
+			} else {
 				active = "no"
 			}
-			if local != nil {
-				limitGB = local.TrafficLimit
-				usedGB = local.TrafficUsed
-				if local.IsActive {
-					active = "yes"
-				} else {
-					active = "no"
-				}
-			}
-
-			rows = append(rows, blitzUserRow{
-				ServerID:   srv.ID,
-				ServerName: srv.Name,
-				Username:   bu.Username,
-				LimitGB:    limitGB,
-				UsedGB:     usedGB,
-				Active:     active,
-				Online:     bu.OnlineCount,
-				Blocked:    blocked,
-			})
 		}
-	}
 
-	printBlitzUsers(rows)
-	return nil
+		rows = append(rows, blitzUserRow{
+			ServerID:   srv.ID,
+			ServerName: srv.Name,
+			Username:   bu.Username,
+			LimitGB:    limitGB,
+			UsedGB:     usedGB,
+			Active:     active,
+			Online:     bu.OnlineCount,
+			Blocked:    blocked,
+		})
+	}
+	return rows
 }
 
 func interactiveAddUser(reader *bufio.Reader, a *app.App, ctx context.Context) error {
@@ -498,7 +675,11 @@ func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) 
 	if err := validateUsername(username); err != nil {
 		return err
 	}
-	confirm := strings.ToLower(readLine(reader, "Kick пользователя? (y/n): "))
+	confirm, err := readLine(reader, "Kick пользователя? (y/n): ")
+	if isInputCancelled(err) {
+		return err
+	}
+	confirm = strings.ToLower(confirm)
 	if confirm != "y" && confirm != "yes" && confirm != "д" && confirm != "да" {
 		fmt.Println("Отменено.")
 		return nil
@@ -560,6 +741,10 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 	if err != nil {
 		return err
 	}
+	srv, err := a.ServerSvc.GetServer(ctx, serverID)
+	if err != nil {
+		return err
+	}
 	uri, err := client.ShowUserURI(ctx, username)
 	if err != nil {
 		return err
@@ -567,17 +752,8 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 	if uri.Error != nil && *uri.Error != "" {
 		return fmt.Errorf("blitz: %s", *uri.Error)
 	}
-	if uri.IPv4 != nil {
-		fmt.Printf("IPv4: %s\n", *uri.IPv4)
-	}
-	if uri.IPv6 != nil {
-		fmt.Printf("IPv6: %s\n", *uri.IPv6)
-	}
-	if uri.NormalSub != nil {
-		fmt.Printf("Sub:  %s\n", *uri.NormalSub)
-	}
-	for _, node := range uri.Nodes {
-		fmt.Printf("%s: %s\n", node.Name, node.URI)
+	for _, line := range blitz.CollectRelabeledHy2URIs(uri, srv.Name) {
+		fmt.Println(line)
 	}
 	return nil
 }
@@ -585,7 +761,10 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) error {
 	fmt.Println("  1. Все серверы")
 	fmt.Println("  2. Один сервер")
-	choice := readLine(reader, "Выберите: ")
+	choice, err := readLine(reader, "Выберите: ")
+	if isInputCancelled(err) {
+		return err
+	}
 
 	switch choice {
 	case "1":

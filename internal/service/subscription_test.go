@@ -67,7 +67,7 @@ func TestBuildSubscriptionSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeString() error = %v", err)
 	}
-	if !strings.Contains(string(decoded), "hy2://alice@server1:443/?insecure=1") {
+	if !strings.Contains(string(decoded), "hy2://alice@server1:443/?insecure=1#test") {
 		t.Fatalf("unexpected subscription body: %s", decoded)
 	}
 }

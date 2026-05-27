@@ -72,7 +72,6 @@ func (s *SubscriptionService) BuildSubscription(ctx context.Context, token strin
 	}
 
 	var lines []string
-	seen := make(map[string]struct{})
 
 	for _, srv := range servers {
 		if !srv.IsActive {
@@ -117,11 +116,7 @@ func (s *SubscriptionService) BuildSubscription(ctx context.Context, token strin
 			continue
 		}
 
-		for _, line := range blitz.CollectHy2URIs(uri) {
-			if _, ok := seen[line]; ok {
-				continue
-			}
-			seen[line] = struct{}{}
+		for _, line := range blitz.CollectRelabeledHy2URIs(uri, srv.Name) {
 			lines = append(lines, line)
 		}
 	}
