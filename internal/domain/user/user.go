@@ -36,6 +36,7 @@ type Repository interface {
 	ListActive() ([]User, error)
 	ListActiveByServer(serverID uint) ([]User, error)
 	Deactivate(serverID uint, username string) error
+	Delete(serverID uint, username string) error
 	UpdateTraffic(serverID uint, username string, update TrafficUpdate) error
 }
 

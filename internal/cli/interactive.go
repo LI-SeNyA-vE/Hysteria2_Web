@@ -701,7 +701,7 @@ func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) 
 	if username != rawName {
 		fmt.Printf("Username: %s\n", username)
 	}
-	confirm, err := readLine(reader, "Kick пользователя? (y/n): ")
+	confirm, err := readLine(reader, "Удалить пользователя из Blitz и базы панели? (y/n): ")
 	if isInputCancelled(err) {
 		return err
 	}
@@ -722,7 +722,7 @@ func interactiveKickUser(reader *bufio.Reader, a *app.App, ctx context.Context) 
 	if err := a.BlitzSvc.KickUser(ctx, serverID, username); err != nil {
 		return err
 	}
-	fmt.Printf("Пользователь %q отключён.\n", username)
+	fmt.Printf("Пользователь %q удалён.\n", username)
 	return nil
 }
 
@@ -731,13 +731,13 @@ func kickUserOnServers(ctx context.Context, a *app.App, servers []server.Server,
 	successCount := 0
 
 	for _, srv := range servers {
-		printStep("Kick пользователя %q на сервере %q...", username, srv.Name)
+		printStep("Удаление пользователя %q на сервере %q...", username, srv.Name)
 		if err := a.BlitzSvc.KickUser(ctx, srv.ID, username); err != nil {
 			printFail(fmt.Errorf("%s: %w", srv.Name, err))
 			failures = append(failures, fmt.Sprintf("%s: %s", srv.Name, humanError(err)))
 			continue
 		}
-		printOK("Пользователь %q отключён на сервере %q", username, srv.Name)
+		printOK("Пользователь %q удалён на сервере %q", username, srv.Name)
 		successCount++
 	}
 

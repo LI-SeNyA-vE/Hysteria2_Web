@@ -112,6 +112,14 @@ func (r *UserRepository) Deactivate(serverID uint, username string) error {
 	return nil
 }
 
+func (r *UserRepository) Delete(serverID uint, username string) error {
+	result := r.db.Where("server_id = ? AND username = ?", serverID, username).Delete(&user.User{})
+	if result.Error != nil {
+		return fmt.Errorf("delete user: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *UserRepository) UpdateTraffic(serverID uint, username string, update user.TrafficUpdate) error {
 	err := r.db.Model(&user.User{}).
 		Where("server_id = ? AND username = ?", serverID, username).

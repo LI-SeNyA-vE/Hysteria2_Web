@@ -186,9 +186,10 @@ func (s *BlitzService) KickUser(ctx context.Context, serverID uint, username str
 		return fmt.Errorf("remove user from blitz: %w", err)
 	}
 
-	if err := s.repo.Deactivate(serverID, username); err != nil {
-		return fmt.Errorf("deactivate user locally: %w", err)
+	if err := s.repo.Delete(serverID, username); err != nil {
+		return fmt.Errorf("delete user locally: %w", err)
 	}
+	s.logger.Info("user removed", "server_id", serverID, "username", username)
 	return nil
 }
 

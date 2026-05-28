@@ -175,8 +175,8 @@ func TestKickUser(t *testing.T) {
 	mu.Unlock()
 
 	u, _ := repo.GetByUsername(serverID, "alice")
-	if u == nil || u.IsActive {
-		t.Fatalf("expected deactivated user, got %+v", u)
+	if u != nil {
+		t.Fatalf("expected user deleted from database, got %+v", u)
 	}
 }
 
@@ -233,14 +233,8 @@ func TestSyncTrafficDeltaAndKick(t *testing.T) {
 	}
 
 	u, _ := repo.GetByUsername(serverID, "alice")
-	if u == nil {
-		t.Fatal("user not found")
-	}
-	if u.TrafficUsed < 1 {
-		t.Fatalf("traffic_used = %d, want >= 1", u.TrafficUsed)
-	}
-	if u.IsActive {
-		t.Fatal("expected user to be kicked after limit exceeded")
+	if u != nil {
+		t.Fatal("expected user deleted after traffic limit kick")
 	}
 
 	mu.Lock()
