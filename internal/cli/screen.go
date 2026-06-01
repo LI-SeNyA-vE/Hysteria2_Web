@@ -40,7 +40,7 @@ func printMenu(cfg config.Config, serviceOK bool) {
 	termPrintln("  6. Добавить пользователя")
 	termPrintln("  7. Kick пользователя")
 	termPrintln("  8. URI подключения")
-	termPrintln("  9. Синхронизация трафика")
+	termPrintln("  9. Синхронизация")
 	termPrintln(" 10. QR подписки")
 	termPrintln("  11. Настройки")
 	termPrintln("  0. Выход")
@@ -66,7 +66,7 @@ func menuTitle(choice string) string {
 	case "8":
 		return "URI подключения"
 	case "9":
-		return "Синхронизация трафика"
+		return "Синхронизация"
 	case "10":
 		return "QR подписки"
 	case "11":

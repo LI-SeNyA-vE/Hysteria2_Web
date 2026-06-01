@@ -4,8 +4,7 @@
     <data-source source="LOCAL" name="panel" uuid="e4cc7958-27a0-4254-b8d4-9efcdb5f41bf">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
-      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/panel.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:/opt/hysteria2-panel/panel.db</jdbc-url>
       <jdbc-additional-properties>
         <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
       </jdbc-additional-properties>

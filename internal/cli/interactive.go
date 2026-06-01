@@ -343,6 +343,7 @@ func interactiveAddServer(reader *bufio.Reader, a *app.App, ctx context.Context)
 		return err
 	}
 	fmt.Printf("Сервер создан: id=%d name=%s\n", srv.ID, srv.Name)
+
 	fmt.Println()
 	fmt.Println("Перезапустите службу, чтобы подписки и sync увидели сервер:")
 	fmt.Println("  systemctl restart hysteria2-panel")
@@ -792,8 +793,10 @@ func interactiveUserURI(reader *bufio.Reader, a *app.App, ctx context.Context) e
 }
 
 func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) error {
-	fmt.Println("  1. Все серверы")
-	fmt.Println("  2. Один сервер")
+	fmt.Println("  1. Синхронизация трафика (Все серверы)")
+	fmt.Println("  2. Синхронизация трафика (Один сервер)")
+	fmt.Println("  3. Синхронизация пользователей (Всех пользователей на все серверы)")
+	fmt.Println("  4. Синхронизация пользователей (Одного пользователя на все серверы)")
 	choice, err := readLine(reader, "Выберите: ")
 	if isInputCancelled(err) {
 		return err
@@ -804,7 +807,7 @@ func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) erro
 		if err := a.BlitzSvc.SyncTraffic(ctx); err != nil {
 			return err
 		}
-		fmt.Println("Синхронизация завершена для всех серверов.")
+		fmt.Println("Синхронизация трафика завершена для всех серверов.")
 	case "2":
 		id, err := pickServer(reader, a, ctx)
 		if err != nil {
@@ -813,7 +816,23 @@ func interactiveSync(reader *bufio.Reader, a *app.App, ctx context.Context) erro
 		if err := a.BlitzSvc.SyncTrafficForServer(ctx, id); err != nil {
 			return err
 		}
-		fmt.Printf("Синхронизация завершена для сервера id=%d.\n", id)
+		fmt.Printf("Синхронизация трафика завершена для сервера id=%d.\n", id)
+	case "3":
+		fmt.Println("Синхронизация всех пользователей на все серверы...")
+		if err := a.BlitzSvc.SyncAllUsersAcrossServers(ctx); err != nil {
+			return err
+		}
+		fmt.Println("Синхронизация пользователей завершена.")
+	case "4":
+		username, err := readRequired(reader, "Имя пользователя")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Синхронизация пользователя %q на все серверы...\n", username)
+		if err := a.BlitzSvc.SyncUserAcrossServers(ctx, username); err != nil {
+			return err
+		}
+		fmt.Printf("Синхронизация пользователя %q завершена.\n", username)
 	default:
 		return fmt.Errorf("неверный выбор")
 	}

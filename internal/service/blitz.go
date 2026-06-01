@@ -108,6 +108,101 @@ func (s *BlitzService) AddUser(ctx context.Context, serverID uint, username, pas
 	return nil
 }
 
+func (s *BlitzService) SyncUserAcrossServers(ctx context.Context, username string) error {
+	users, err := s.repo.ListByUsername(username)
+	if err != nil {
+		return err
+	}
+	if len(users) == 0 {
+		return fmt.Errorf("пользователь %q не найден", username)
+	}
+
+	// Используем первую найденную запись как эталон
+	baseUser := users[0]
+
+	activeServerIDs := s.registry.GetAllServerIDs()
+
+	for _, serverID := range activeServerIDs {
+		existing, err := s.repo.GetByUsername(serverID, username)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			continue // уже существует на этом сервере
+		}
+
+		client, err := s.registry.Get(serverID)
+		if err != nil {
+			continue
+		}
+
+		remainingDays := baseUser.ExpirationDays
+		if !baseUser.ExpiresAt.IsZero() {
+			hours := time.Until(baseUser.ExpiresAt).Hours()
+			if hours <= 0 {
+				remainingDays = 1
+			} else {
+				days := int(hours / 24)
+				if hours > float64(days*24) {
+					days++
+				}
+				remainingDays = days
+			}
+		}
+
+		req := blitz.AddUserRequest{
+			Username:       baseUser.Username,
+			Password:       &baseUser.AuthPassword,
+			TrafficLimit:   baseUser.TrafficLimit,
+			ExpirationDays: remainingDays,
+			Unlimited:      false,
+		}
+
+		s.logger.Info("syncing user to server", "server_id", serverID, "username", baseUser.Username)
+		if err := client.AddUser(ctx, req); err != nil {
+			s.logger.Error("failed to sync user to blitz", "server_id", serverID, "username", baseUser.Username, "err", err)
+			continue
+		}
+
+		newUser := &user.User{
+			ServerID:       serverID,
+			Username:       baseUser.Username,
+			AuthPassword:   baseUser.AuthPassword,
+			SubToken:       baseUser.SubToken,
+			TrafficLimit:   baseUser.TrafficLimit,
+			TrafficUsed:    0,
+			IsActive:       baseUser.IsActive,
+			ExpirationDays: baseUser.ExpirationDays,
+			ExpiresAt:      baseUser.ExpiresAt,
+		}
+		if err := s.repo.Create(newUser); err != nil {
+			s.logger.Error("failed to persist synced user", "server_id", serverID, "username", baseUser.Username, "err", err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (s *BlitzService) SyncAllUsersAcrossServers(ctx context.Context) error {
+	allUsers, err := s.repo.ListAll()
+	if err != nil {
+		return err
+	}
+
+	seen := make(map[string]bool)
+	for _, u := range allUsers {
+		if seen[u.Username] {
+			continue
+		}
+		seen[u.Username] = true
+		if err := s.SyncUserAcrossServers(ctx, u.Username); err != nil {
+			s.logger.Error("failed to sync user across servers", "username", u.Username, "err", err)
+		}
+	}
+	return nil
+}
+
 func (s *BlitzService) EnsureSubToken(username string) (string, error) {
 	token, err := s.repo.GetSubTokenByUsername(username)
 	if err != nil {

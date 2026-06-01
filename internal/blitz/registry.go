@@ -50,3 +50,13 @@ func (r *Registry) LoadAll(servers []server.Server) {
 		}
 	}
 }
+
+func (r *Registry) GetAllServerIDs() []uint {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var ids []uint
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	return ids
+}
