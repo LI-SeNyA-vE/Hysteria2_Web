@@ -26,7 +26,7 @@ export function Dashboard() {
   const { data = PLACEHOLDER, isError, isSuccess } = useQuery({
     queryKey: ['stats'],
     queryFn: getStats,
-    placeholderData: PLACEHOLDER,
+    placeholderData: (prev: typeof PLACEHOLDER | undefined) => prev ?? PLACEHOLDER,
     refetchInterval: 10_000,
   })
 
@@ -45,10 +45,11 @@ export function Dashboard() {
   })
 
   const inv = () => qc.invalidateQueries({ queryKey: ['stats'] })
+  const invDelayed = () => setTimeout(inv, 600)
   const installMut = useMutation({ mutationFn: installHysteria, onSuccess: inv })
-  const startMut   = useMutation({ mutationFn: startHysteria,   onSuccess: inv })
-  const stopMut    = useMutation({ mutationFn: stopHysteria,    onSuccess: inv })
-  const reloadMut  = useMutation({ mutationFn: reloadConfig,    onSuccess: inv })
+  const startMut   = useMutation({ mutationFn: startHysteria,   onSuccess: invDelayed })
+  const stopMut    = useMutation({ mutationFn: stopHysteria,    onSuccess: invDelayed })
+  const reloadMut  = useMutation({ mutationFn: reloadConfig,    onSuccess: invDelayed })
   const updateMut  = useMutation({ mutationFn: applyUpdate })
 
   const hy = data.hysteria
