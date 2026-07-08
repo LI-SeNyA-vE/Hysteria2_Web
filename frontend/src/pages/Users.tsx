@@ -41,13 +41,13 @@ export function Users() {
     const pin  = config?.certSha256    ?? ''
     const sni  = config?.sni           ?? ''
 
-    const params = new URLSearchParams()
-    if (obfs) { params.set('obfs', 'salamander'); params.set('obfs-password', obfs) }
-    if (pin)  params.set('pinSHA256', pin)
-    if (sni)  params.set('sni', sni)
-    params.set('insecure', '1')
+    const parts: string[] = []
+    if (obfs) { parts.push('obfs=salamander'); parts.push(`obfs-password=${encodeURIComponent(obfs)}`) }
+    if (pin)  parts.push(`pinSHA256=${pin}`)   // колонки не кодируем — hysteria2 ожидает AA:BB:CC
+    if (sni)  parts.push(`sni=${encodeURIComponent(sni)}`)
+    parts.push('insecure=1')
 
-    return `hysteria2://${encodeURIComponent(user.name)}:${encodeURIComponent(user.password)}@${ip}:${port}?${params.toString()}#${encodeURIComponent(user.name)}`
+    return `hysteria2://${encodeURIComponent(user.name)}:${encodeURIComponent(user.password)}@${ip}:${port}?${parts.join('&')}#${encodeURIComponent(user.name)}`
   }
 
   const createMut = useMutation({
