@@ -65,6 +65,9 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/api/hysteria/cert/regenerate", s.handleHysteriaCertRegen)
 
 		r.Get("/api/settings", s.handleGetSettings)
+
+		r.Get("/api/update/check", s.handleCheckUpdate)
+		r.Post("/api/update/apply", s.handleApplyUpdate)
 	})
 
 	// Нодовые маршруты (X-Node-Token, без JWT).

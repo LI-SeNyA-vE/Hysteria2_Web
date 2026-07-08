@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Activity, Users, HardDrive, Clock, Play, Square, Download, RefreshCw } from 'lucide-react'
+import { Activity, Users, HardDrive, Clock, Play, Square, Download, RefreshCw, ArrowUpCircle, ExternalLink } from 'lucide-react'
 import { getStats } from '@/api/servers'
 import { startHysteria, stopHysteria, installHysteria, reloadConfig } from '@/api/hysteria'
+import { checkUpdate, applyUpdate } from '@/api/update'
 import { StatCard } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,11 +37,19 @@ export function Dashboard() {
     else if (isSuccess) setOffline(false)
   }, [isError, isSuccess])
 
+  const { data: updateInfo } = useQuery({
+    queryKey: ['update-check'],
+    queryFn: checkUpdate,
+    refetchInterval: 60 * 60 * 1000, // раз в час
+    retry: false,
+  })
+
   const inv = () => qc.invalidateQueries({ queryKey: ['stats'] })
   const installMut = useMutation({ mutationFn: installHysteria, onSuccess: inv })
   const startMut   = useMutation({ mutationFn: startHysteria,   onSuccess: inv })
   const stopMut    = useMutation({ mutationFn: stopHysteria,    onSuccess: inv })
   const reloadMut  = useMutation({ mutationFn: reloadConfig,    onSuccess: inv })
+  const updateMut  = useMutation({ mutationFn: applyUpdate })
 
   const hy = data.hysteria
 
@@ -56,6 +65,50 @@ export function Dashboard() {
           <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Нет соединения с сервером</p>
         )}
       </div>
+
+      {/* Баннер обновления */}
+      {updateInfo?.updateAvailable && (
+        <div
+          className="rounded-2xl px-6 py-4 flex items-center justify-between"
+          style={{
+            background: 'linear-gradient(90deg, rgba(234,179,8,0.12) 0%, rgba(234,179,8,0.06) 100%)',
+            boxShadow: '0 0 0 1px rgba(234,179,8,0.25)',
+            marginBottom: 20,
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <ArrowUpCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <span className="text-[14px] text-sub">
+              Доступно обновление{' '}
+              <span className="text-text font-semibold">{updateInfo.latestVersion}</span>
+              <span className="text-dim"> (текущая {updateInfo.currentVersion})</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={updateInfo.releaseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-[13px] text-dim hover:text-sub transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Что нового
+            </a>
+            {updateMut.isSuccess ? (
+              <span className="text-[13px] text-green-400">Перезапуск...</span>
+            ) : (
+              <Button
+                size="sm"
+                loading={updateMut.isPending}
+                onClick={() => updateMut.mutate()}
+                style={{ background: 'rgba(234,179,8,0.2)', borderColor: 'rgba(234,179,8,0.3)', color: '#fde047' }}
+              >
+                <Download className="w-3 h-3" /> Обновить
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Статистика */}
       <div className="grid grid-cols-4 gap-5" style={{ marginBottom: 28 }}>
