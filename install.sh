@@ -84,6 +84,12 @@ info "Данные:     $DATA_DIR"
 [[ -n "$DB_DSN" ]] && info "БД:         PostgreSQL" || info "БД:         SQLite (встроенная)"
 echo ""
 
+# ── Остановка сервиса перед обновлением ──────────────────────────────────────
+if systemctl is-active --quiet hysteria2-panel 2>/dev/null; then
+    info "Останавливаем службу для обновления..."
+    systemctl stop hysteria2-panel
+fi
+
 # ── Скачивание бинаря ────────────────────────────────────────────────────────
 ASSET_NAME="panel-linux-$GOARCH"
 VERSION="${PANEL_VERSION:-latest}"
@@ -96,7 +102,6 @@ fi
 
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 info "Скачиваем $DOWNLOAD_URL ..."
-# Скачиваем во временный файл — нельзя перезаписать запущенный бинарь напрямую
 TMP_BINARY="$BINARY.tmp"
 curl -fL --location "$DOWNLOAD_URL" -o "$TMP_BINARY"
 chmod +x "$TMP_BINARY"
