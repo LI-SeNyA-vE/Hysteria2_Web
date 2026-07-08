@@ -57,6 +57,9 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "ошибка создания пользователя")
 		return
 	}
+	if s.manager != nil {
+		_ = s.manager.ReloadConfig()
+	}
 	writeJSON(w, http.StatusCreated, toUserDTO(user))
 }
 
@@ -101,6 +104,9 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "ошибка сохранения")
 		return
 	}
+	if s.manager != nil {
+		_ = s.manager.ReloadConfig()
+	}
 	writeJSON(w, http.StatusOK, toUserDTO(user))
 }
 
@@ -113,6 +119,9 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.Delete(&models.User{}, id).Error; err != nil {
 		writeErr(w, http.StatusInternalServerError, "ошибка удаления")
 		return
+	}
+	if s.manager != nil {
+		_ = s.manager.ReloadConfig()
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

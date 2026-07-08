@@ -79,18 +79,21 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Скачиваем во временный файл рядом с текущим бинарём
-	tmpPath := exePath + ".new"
-	if err := downloadFile(r.Context(), downloadURL, tmpPath); err != nil {
+	// Скачиваем напрямую поверх текущего бинаря
+	// (файл открыт на запись пока процесс держит его на чтение — на Linux это ок)
+	if err := downloadFile(r.Context(), downloadURL, exePath+".new"); err != nil {
 		writeErr(w, http.StatusInternalServerError, "ошибка скачивания: "+err.Error())
 		return
 	}
 
-	// Атомарная замена: rename не прерывает работу текущего процесса
-	if err := os.Rename(tmpPath, exePath); err != nil {
-		os.Remove(tmpPath)
-		writeErr(w, http.StatusInternalServerError, "ошибка замены бинаря: "+err.Error())
-		return
+	// Атомарная замена через rename; если разные устройства — копируем вручную
+	if err := os.Rename(exePath+".new", exePath); err != nil {
+		if copyErr := copyFile(exePath+".new", exePath); copyErr != nil {
+			os.Remove(exePath + ".new")
+			writeErr(w, http.StatusInternalServerError, "ошибка замены бинаря: "+err.Error()+" / "+copyErr.Error())
+			return
+		}
+		os.Remove(exePath + ".new")
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
@@ -103,6 +106,21 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)
 		os.Exit(0)
 	}()
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	out.Close()
+	return err
 }
 
 func downloadFile(ctx context.Context, url, destPath string) error {

@@ -184,7 +184,11 @@ func (m *Manager) UpdateConfig(obfsPassword, masqURL string) error {
 }
 
 // ReloadConfig перезаписывает server.yaml и перезапускает процесс.
+// Для нод (m.db == nil) ничего не делает — их конфиг управляется main-ом.
 func (m *Manager) ReloadConfig() error {
+	if m.db == nil {
+		return nil
+	}
 	if m.IsRunning() {
 		if err := m.Stop(); err != nil {
 			return err
