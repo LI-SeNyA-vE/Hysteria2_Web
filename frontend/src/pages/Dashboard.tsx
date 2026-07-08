@@ -23,7 +23,7 @@ const CARD_STYLE = {
 
 export function Dashboard() {
   const qc = useQueryClient()
-  const { data = PLACEHOLDER, isError, isSuccess } = useQuery({
+  const { data = PLACEHOLDER, isError, isSuccess, isFetching: statsFetching, refetch: refetchStats } = useQuery({
     queryKey: ['stats'],
     queryFn: getStats,
     placeholderData: (prev: typeof PLACEHOLDER | undefined) => prev ?? PLACEHOLDER,
@@ -163,6 +163,14 @@ export function Dashboard() {
             <Badge dot variant={hy.running ? 'success' : hy.installed ? 'warning' : 'muted'}>
               {hy.running ? 'Работает' : hy.installed ? 'Остановлен' : 'Не установлен'}
             </Badge>
+            <button
+              onClick={() => refetchStats()}
+              disabled={statsFetching}
+              title="Обновить статус"
+              className="rounded-lg p-1 transition-colors hover:bg-white/5 disabled:opacity-40"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-dim ${statsFetching ? 'animate-spin' : ''}`} />
+            </button>
           </div>
           <div className="flex items-center gap-2">
             {!hy.installed ? (

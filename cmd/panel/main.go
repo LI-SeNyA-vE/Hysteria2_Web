@@ -72,10 +72,11 @@ func main() {
 	if cfg.RunsHysteria() {
 		mgr = hysteria.New(cfg.DataDir, cfg.Hy2.Port, d)
 		if d != nil {
-			// main_node1: авто-старт и поллинг трафика через локальную БД
-			if running, _ := d.GetSetting(models.SettingHy2Running); running == "1" {
+			// Авто-старт: запускаем если не было явной остановки пользователем ("0").
+			// Пустая строка = первый запуск / переустановка → тоже пробуем стартовать.
+			if stopped, _ := d.GetSetting(models.SettingHy2Running); stopped != "0" {
 				if err := mgr.Start(); err != nil {
-					log.Printf("предупреждение: авто-старт hysteria: %v", err)
+					log.Printf("авто-старт hysteria2 пропущен: %v", err)
 				}
 			}
 			go mgr.PollTrafficForever(ctx)
