@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, QrCode, Copy, Check, Users as UsersIcon, Search } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { getUsers, createUser, deleteUser, toggleUser } from '@/api/users'
+import { getHysteriaConfig } from '@/api/hysteria'
+import { getServers } from '@/api/servers'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -23,8 +26,29 @@ export function Users() {
   const [createOpen, setCreateOpen] = useState(false)
   const [qrUser, setQrUser]         = useState<User | null>(null)
   const [copiedId, setCopiedId]     = useState<number | null>(null)
+  const [uriCopied, setUriCopied]   = useState(false)
 
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: getUsers, placeholderData: [] })
+  const { data: users = [] }  = useQuery({ queryKey: ['users'],           queryFn: getUsers,           placeholderData: [] })
+  const { data: config }      = useQuery({ queryKey: ['hysteria-config'],  queryFn: getHysteriaConfig  })
+  const { data: servers = [] } = useQuery({ queryKey: ['servers'],         queryFn: getServers,         placeholderData: [] })
+
+  const mainServer = servers.find(s => s.role === 'main' || s.role === 'main_node1')
+
+  const buildUri = (user: User) => {
+    const ip   = mainServer?.publicIp  ?? 'YOUR_IP'
+    const port = config?.port          ?? 443
+    const obfs = config?.obfsPassword  ?? ''
+    const pin  = config?.certSha256    ?? ''
+    const sni  = config?.sni           ?? ''
+
+    const params = new URLSearchParams()
+    if (obfs) { params.set('obfs', 'salamander'); params.set('obfs-password', obfs) }
+    if (pin)  params.set('pinSHA256', pin)
+    if (sni)  params.set('sni', sni)
+    params.set('insecure', '1')
+
+    return `hysteria2://${encodeURIComponent(user.name)}:${encodeURIComponent(user.password)}@${ip}:${port}?${params.toString()}#${encodeURIComponent(user.name)}`
+  }
 
   const createMut = useMutation({
     mutationFn: createUser,
@@ -45,6 +69,12 @@ export function Users() {
     await copyToClipboard(buildUri(user))
     setCopiedId(user.id)
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const handleUriCopy = async (user: User) => {
+    await copyToClipboard(buildUri(user))
+    setUriCopied(true)
+    setTimeout(() => setUriCopied(false), 2000)
   }
 
   return (
@@ -70,7 +100,6 @@ export function Users() {
         <Input placeholder="Поиск…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
       </div>
 
-      {/* Таблица — НЕТ overflow-hidden, скругление через клетки */}
       <div style={TABLE_BOX}>
         <table className="w-full border-collapse" style={{ borderRadius: 16 }}>
           <thead>
@@ -115,20 +144,13 @@ export function Users() {
                   <tr
                     key={user.id}
                     className="transition-colors duration-75"
-                    style={{
-                      borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.05)',
-                    }}
+                    style={{ borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.05)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
-                    {/* Первая ячейка: скругление нижнего угла если последняя строка */}
                     <td
                       className="py-5 text-[14px] font-medium text-text"
-                      style={{
-                        paddingLeft: 28,
-                        paddingRight: 20,
-                        borderRadius: isLast ? '0 0 0 16px' : undefined,
-                      }}
+                      style={{ paddingLeft: 28, paddingRight: 20, borderRadius: isLast ? '0 0 0 16px' : undefined }}
                     >
                       {user.name}
                     </td>
@@ -152,14 +174,9 @@ export function Users() {
                         onCheckedChange={active => toggleMut.mutate({ id: user.id, active })}
                       />
                     </td>
-                    {/* Последняя ячейка: скругление правого нижнего угла */}
                     <td
                       className="py-5"
-                      style={{
-                        paddingLeft: 8,
-                        paddingRight: 24,
-                        borderRadius: isLast ? '0 0 16px 0' : undefined,
-                      }}
+                      style={{ paddingLeft: 8, paddingRight: 24, borderRadius: isLast ? '0 0 16px 0' : undefined }}
                     >
                       <div className="flex items-center gap-0.5 justify-end">
                         <Button variant="ghost" size="icon" onClick={() => handleCopy(user)}>
@@ -167,7 +184,7 @@ export function Users() {
                             ? <Check className="w-4 h-4 text-success" />
                             : <Copy className="w-4 h-4" />}
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setQrUser(user)}>
+                        <Button variant="ghost" size="icon" onClick={() => { setQrUser(user); setUriCopied(false) }}>
                           <QrCode className="w-4 h-4" />
                         </Button>
                         <Button
@@ -188,27 +205,42 @@ export function Users() {
         </table>
       </div>
 
-      {/* Диалоги */}
       <CreateUserDialog
         open={createOpen} onClose={() => setCreateOpen(false)}
         onSubmit={d => createMut.mutate(d)}
         loading={createMut.isPending} error={createMut.error?.message}
       />
 
-      <Dialog open={!!qrUser} onClose={() => setQrUser(null)} title="URI пользователя" description="Скопируйте в клиент Hysteria2">
-        {qrUser && (
-          <div className="space-y-3">
-            <div
-              className="rounded-xl p-4 font-mono text-[12px] text-sub break-all leading-relaxed"
-              style={{ background: 'rgba(255,255,255,0.03)', boxShadow: '0 0 0 1px rgba(255,255,255,0.07)' }}
-            >
-              {buildUri(qrUser)}
+      {/* QR-диалог */}
+      <Dialog open={!!qrUser} onClose={() => setQrUser(null)} title="Подключение" description={qrUser?.name ?? ''}>
+        {qrUser && (() => {
+          const uri = buildUri(qrUser)
+          return (
+            <div className="space-y-4">
+              {/* QR */}
+              <div className="flex justify-center">
+                <div className="p-4 rounded-2xl" style={{ background: '#fff' }}>
+                  <QRCodeSVG value={uri} size={220} />
+                </div>
+              </div>
+
+              {/* URI текст */}
+              <div
+                className="rounded-xl p-3 font-mono text-[11px] text-dim break-all leading-relaxed select-all"
+                style={{ background: 'rgba(255,255,255,0.03)', boxShadow: '0 0 0 1px rgba(255,255,255,0.07)' }}
+              >
+                {uri}
+              </div>
+
+              {/* Кнопка копирования */}
+              <Button className="w-full" onClick={() => handleUriCopy(qrUser)}>
+                {uriCopied
+                  ? <><Check className="w-4 h-4" /> Скопировано</>
+                  : <><Copy className="w-4 h-4" /> Скопировать URI</>}
+              </Button>
             </div>
-            <Button className="w-full" onClick={() => copyToClipboard(buildUri(qrUser))}>
-              <Copy className="w-4 h-4" /> Скопировать URI
-            </Button>
-          </div>
-        )}
+          )
+        })()}
       </Dialog>
     </div>
   )
@@ -219,8 +251,7 @@ function Th({ children, first, last }: { children: React.ReactNode; first?: bool
     <th
       className="text-left text-[12px] font-semibold text-dim uppercase tracking-[0.07em]"
       style={{
-        paddingTop: 16,
-        paddingBottom: 16,
+        paddingTop: 16, paddingBottom: 16,
         paddingLeft: first ? 28 : 20,
         paddingRight: last ? 24 : 20,
         borderRadius: first ? '16px 0 0 0' : last ? '0 16px 0 0' : undefined,
@@ -229,10 +260,6 @@ function Th({ children, first, last }: { children: React.ReactNode; first?: bool
       {children}
     </th>
   )
-}
-
-function buildUri(user: User) {
-  return `hysteria2://${user.password}@server:443?insecure=1#${user.name}`
 }
 
 function CreateUserDialog({ open, onClose, onSubmit, loading, error }: {

@@ -36,6 +36,9 @@ func (s *Server) handleHysteriaGetConfig(w http.ResponseWriter, r *http.Request)
 		ObfsPassword:  c.ObfsPassword,
 		MasqueradeURL: c.MasqueradeURL,
 		CertSHA256:    c.CertSHA256,
+		BandwidthUp:   c.BandwidthUp,
+		BandwidthDown: c.BandwidthDown,
+		SNI:           c.SNI,
 	})
 }
 
@@ -44,14 +47,18 @@ func (s *Server) handleHysteriaUpdateConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req struct {
+		Port          int    `json:"port"`
 		ObfsPassword  string `json:"obfsPassword"`
 		MasqueradeURL string `json:"masqueradeUrl"`
+		BandwidthUp   string `json:"bandwidthUp"`
+		BandwidthDown string `json:"bandwidthDown"`
+		SNI           string `json:"sni"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "неверный JSON")
 		return
 	}
-	if err := s.manager.UpdateConfig(req.ObfsPassword, req.MasqueradeURL); err != nil {
+	if err := s.manager.UpdateConfig(req.Port, req.ObfsPassword, req.MasqueradeURL, req.BandwidthUp, req.BandwidthDown, req.SNI); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}

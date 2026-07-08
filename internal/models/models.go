@@ -67,6 +67,10 @@ const (
 	SettingMasqueradeURL     = "masquerade_url"
 	SettingCascadeUser       = "cascade_user"
 	SettingCascadePassword   = "cascade_password"
-	SettingHy2Running        = "hy2_running"  // желаемое состояние: "1"/"0"
-	SettingStatsSecret       = "stats_secret" // секрет Traffic Stats API hysteria2
+	SettingHy2Running        = "hy2_running"    // желаемое состояние: "1"/"0"
+	SettingStatsSecret       = "stats_secret"   // секрет Traffic Stats API hysteria2
+	SettingBandwidthUp       = "bandwidth_up"   // лимит исходящего, напр. "100 mbps"
+	SettingBandwidthDown     = "bandwidth_down" // лимит входящего, напр. "1 gbps"
+	SettingHy2Port           = "hy2_port"       // UDP-порт hysteria2 (override panel.yaml)
+	SettingSNI               = "sni"            // SNI для клиентских URI, напр. "yandex.ru"
 )

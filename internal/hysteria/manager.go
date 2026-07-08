@@ -58,6 +58,22 @@ type Config struct {
 	ObfsPassword  string
 	MasqueradeURL string
 	CertSHA256    string
+	BandwidthUp   string
+	BandwidthDown string
+	SNI           string
+}
+
+// effectivePort возвращает порт из БД (если задан) или из конфига панели.
+func (m *Manager) effectivePort() int {
+	if m.db != nil {
+		if v, _ := m.db.GetSetting(models.SettingHy2Port); v != "" {
+			var p int
+			if _, err := fmt.Sscanf(v, "%d", &p); err == nil && p > 0 {
+				return p
+			}
+		}
+	}
+	return m.port
 }
 
 // Manager управляет жизненным циклом hysteria2 как дочернего процесса.
@@ -158,18 +174,29 @@ func (m *Manager) Status() Status {
 func (m *Manager) GetConfig() Config {
 	obfs, _ := m.db.GetSetting(models.SettingObfsPassword)
 	masq, _ := m.db.GetSettingOrDefault(models.SettingMasqueradeURL, "https://news.ycombinator.com/")
+	bwUp, _ := m.db.GetSetting(models.SettingBandwidthUp)
+	bwDown, _ := m.db.GetSetting(models.SettingBandwidthDown)
+	sni, _ := m.db.GetSetting(models.SettingSNI)
 	var server models.Server
 	_ = m.db.Where("name = ?", "main").First(&server).Error
 	return Config{
-		Port:          m.port,
+		Port:          m.effectivePort(),
 		ObfsPassword:  obfs,
 		MasqueradeURL: masq,
 		CertSHA256:    server.CertSHA256,
+		BandwidthUp:   bwUp,
+		BandwidthDown: bwDown,
+		SNI:           sni,
 	}
 }
 
 // UpdateConfig сохраняет параметры конфига в БД (применяется после ReloadConfig).
-func (m *Manager) UpdateConfig(obfsPassword, masqURL string) error {
+func (m *Manager) UpdateConfig(port int, obfsPassword, masqURL, bwUp, bwDown, sni string) error {
+	if port > 0 {
+		if err := m.db.SetSetting(models.SettingHy2Port, fmt.Sprintf("%d", port)); err != nil {
+			return err
+		}
+	}
 	if obfsPassword != "" {
 		if err := m.db.SetSetting(models.SettingObfsPassword, obfsPassword); err != nil {
 			return err
@@ -179,6 +206,15 @@ func (m *Manager) UpdateConfig(obfsPassword, masqURL string) error {
 		if err := m.db.SetSetting(models.SettingMasqueradeURL, masqURL); err != nil {
 			return err
 		}
+	}
+	if err := m.db.SetSetting(models.SettingBandwidthUp, bwUp); err != nil {
+		return err
+	}
+	if err := m.db.SetSetting(models.SettingBandwidthDown, bwDown); err != nil {
+		return err
+	}
+	if err := m.db.SetSetting(models.SettingSNI, sni); err != nil {
+		return err
 	}
 	return nil
 }

@@ -131,6 +131,9 @@ type hysteriaConfigDTO struct {
 	ObfsPassword  string `json:"obfsPassword"`
 	MasqueradeURL string `json:"masqueradeUrl"`
 	CertSHA256    string `json:"certSha256"`
+	BandwidthUp   string `json:"bandwidthUp"`
+	BandwidthDown string `json:"bandwidthDown"`
+	SNI           string `json:"sni"`
 }
 
 // dashboardStatsDTO зеркалит DashboardStats.

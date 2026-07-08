@@ -76,4 +76,7 @@ export interface HysteriaConfig {
   obfsPassword: string
   masqueradeUrl: string
   certSha256: string
+  bandwidthUp: string
+  bandwidthDown: string
+  sni: string
 }

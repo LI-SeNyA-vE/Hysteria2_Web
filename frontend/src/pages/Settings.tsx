@@ -121,13 +121,23 @@ export function Settings() {
 }
 
 function ConfigSection({ config, onSaved }: { config: HysteriaConfig; onSaved: () => void }) {
-  const [port, setPort] = useState(String(config.port))
-  const [obfs, setObfs] = useState(config.obfsPassword)
-  const [mask, setMask] = useState(config.masqueradeUrl)
-  const [saved, setSaved] = useState(false)
+  const [port, setPort]     = useState(String(config.port))
+  const [obfs, setObfs]     = useState(config.obfsPassword)
+  const [mask, setMask]     = useState(config.masqueradeUrl)
+  const [bwUp, setBwUp]     = useState(config.bandwidthUp)
+  const [bwDown, setBwDown] = useState(config.bandwidthDown)
+  const [sni, setSni]       = useState(config.sni)
+  const [saved, setSaved]   = useState(false)
 
   const saveMut = useMutation({
-    mutationFn: () => saveHysteriaConfig({ port: parseInt(port), obfsPassword: obfs, masqueradeUrl: mask }),
+    mutationFn: () => saveHysteriaConfig({
+      port: parseInt(port) || config.port,
+      obfsPassword: obfs,
+      masqueradeUrl: mask,
+      bandwidthUp: bwUp,
+      bandwidthDown: bwDown,
+      sni,
+    }),
     onSuccess: () => { onSaved(); setSaved(true); setTimeout(() => setSaved(false), 2000) },
   })
 
@@ -138,18 +148,51 @@ function ConfigSection({ config, onSaved }: { config: HysteriaConfig; onSaved: (
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <Input label="Порт" type="number" min="1" max="65535" value={port} onChange={e => setPort(e.target.value)} />
           <Input
-            label="OBFS пароль (Salamander, 30 символов)"
-            value={obfs} onChange={e => setObfs(e.target.value)}
-            hint="Генерируется автоматически при установке"
+            label="UDP порт"
+            type="number"
+            min="1"
+            max="65535"
+            value={port}
+            onChange={e => setPort(e.target.value)}
+            hint="Требует перезапуска hysteria2"
+          />
+          <Input
+            label="OBFS пароль (Salamander)"
+            value={obfs}
+            onChange={e => setObfs(e.target.value)}
+            hint="Одинаковый на сервере и клиенте"
           />
           <Input
             label="Маскарад URL"
             placeholder="https://news.ycombinator.com"
-            value={mask} onChange={e => setMask(e.target.value)}
+            value={mask}
+            onChange={e => setMask(e.target.value)}
             hint="Сайт, под который маскируется трафик"
           />
+          <Input
+            label="SNI (подставляется в ссылку клиента)"
+            placeholder="напр. yandex.ru"
+            value={sni}
+            onChange={e => setSni(e.target.value)}
+            hint="Пусто = без SNI в URI"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Лимит Upload (сервер→клиент)"
+              placeholder="напр. 100 mbps"
+              value={bwUp}
+              onChange={e => setBwUp(e.target.value)}
+              hint="Пусто = без лимита"
+            />
+            <Input
+              label="Лимит Download (клиент→сервер)"
+              placeholder="напр. 1 gbps"
+              value={bwDown}
+              onChange={e => setBwDown(e.target.value)}
+              hint="Пусто = без лимита"
+            />
+          </div>
           <Button size="sm" loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
             {saved ? <><Check className="w-3.5 h-3.5" /> Сохранено</> : 'Сохранить'}
           </Button>

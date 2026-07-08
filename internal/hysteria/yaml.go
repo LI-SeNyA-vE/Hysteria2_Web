@@ -61,7 +61,7 @@ func (m *Manager) buildServerYAMLFromConfig(users map[string]string, obfsPasswor
 	cfg := buildCfg(m.port,
 		filepath.Join(m.dataDir, "cert.pem"),
 		filepath.Join(m.dataDir, "key.pem"),
-		obfsPassword, masqURL, statsSecret, users, outbound)
+		obfsPassword, masqURL, statsSecret, "", "", users, outbound)
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
@@ -83,9 +83,11 @@ func (m *Manager) buildServerYAML(outbound *outboundCfg) error {
 	obfs, _ := m.db.GetSetting(models.SettingObfsPassword)
 	masq, _ := m.db.GetSettingOrDefault(models.SettingMasqueradeURL, "https://news.ycombinator.com/")
 	secret, _ := m.db.GetSetting(models.SettingStatsSecret)
+	bwUp, _ := m.db.GetSetting(models.SettingBandwidthUp)
+	bwDown, _ := m.db.GetSetting(models.SettingBandwidthDown)
 
-	cfg := buildCfg(m.port, filepath.Join(m.dataDir, "cert.pem"), filepath.Join(m.dataDir, "key.pem"),
-		obfs, masq, secret, userMap, outbound)
+	cfg := buildCfg(m.effectivePort(), filepath.Join(m.dataDir, "cert.pem"), filepath.Join(m.dataDir, "key.pem"),
+		obfs, masq, secret, bwUp, bwDown, userMap, outbound)
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
@@ -101,10 +103,16 @@ type serverYAML struct {
 	TLS          tlsYAML        `yaml:"tls"`
 	Obfs         *obfsYAML      `yaml:"obfs,omitempty"`
 	Auth         authYAML       `yaml:"auth"`
+	Bandwidth    *bandwidthYAML `yaml:"bandwidth,omitempty"`
 	Masquerade   masqYAML       `yaml:"masquerade"`
 	TrafficStats statsYAML      `yaml:"trafficStats"`
 	Outbounds    []outboundYAML `yaml:"outbounds,omitempty"`
 	ACL          *aclYAML       `yaml:"acl,omitempty"`
+}
+
+type bandwidthYAML struct {
+	Up   string `yaml:"up,omitempty"`
+	Down string `yaml:"down,omitempty"`
 }
 
 type tlsYAML struct {
@@ -155,7 +163,7 @@ type aclYAML struct {
 	Inline []string `yaml:"inline"`
 }
 
-func buildCfg(port int, certPath, keyPath, obfs, masqURL, statsSecret string,
+func buildCfg(port int, certPath, keyPath, obfs, masqURL, statsSecret, bwUp, bwDown string,
 	users map[string]string, out *outboundCfg) serverYAML {
 
 	cfg := serverYAML{
@@ -180,6 +188,9 @@ func buildCfg(port int, certPath, keyPath, obfs, masqURL, statsSecret string,
 			Type:       "salamander",
 			Salamander: salamaYAML{Password: obfs},
 		}
+	}
+	if bwUp != "" || bwDown != "" {
+		cfg.Bandwidth = &bandwidthYAML{Up: bwUp, Down: bwDown}
 	}
 
 	if out != nil {
