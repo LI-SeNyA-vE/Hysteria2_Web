@@ -62,6 +62,10 @@ func (s *Server) handleHysteriaUpdateConfig(w http.ResponseWriter, r *http.Reque
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if err := s.manager.ReloadConfig(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "настройки сохранены, но перезапуск не удался: "+err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
