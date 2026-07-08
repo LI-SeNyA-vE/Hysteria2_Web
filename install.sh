@@ -85,17 +85,18 @@ info "Данные:     $DATA_DIR"
 echo ""
 
 # ── Скачивание бинаря ────────────────────────────────────────────────────────
-info "Определяем последнюю версию..."
-LATEST=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
-[[ -n "$LATEST" ]] || error "Не удалось получить версию из GitHub API"
-info "Версия: $LATEST"
-
 ASSET_NAME="panel-linux-$GOARCH"
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST/$ASSET_NAME"
+VERSION="${PANEL_VERSION:-latest}"
+
+if [[ "$VERSION" == "latest" ]]; then
+    DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET_NAME"
+else
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET_NAME"
+fi
 
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 info "Скачиваем $DOWNLOAD_URL ..."
-curl -fL "$DOWNLOAD_URL" -o "$BINARY"
+curl -fL --location "$DOWNLOAD_URL" -o "$BINARY"
 chmod +x "$BINARY"
 info "Бинарь установлен в $BINARY"
 

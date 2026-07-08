@@ -69,7 +69,7 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	assetName := fmt.Sprintf("panel-%s-%s", goos, arch)
 	downloadURL := fmt.Sprintf(
 		"https://github.com/%s/releases/download/%s/%s",
-		githubRepo, rel.TagName, assetName,
+		githubRepo, rel.TagName, assetName, // используем точную версию из API
 	)
 
 	// Путь к запущенному бинарю
