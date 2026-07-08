@@ -47,17 +47,23 @@ func (s *Server) handleGetStats(w http.ResponseWriter, r *http.Request) {
 	var trafficSum int64
 	s.db.Model(&models.User{}).Select("COALESCE(SUM(traffic_used_bytes), 0)").Scan(&trafficSum)
 
+	var hySt hysteriaStatusDTO
+	if s.manager != nil {
+		st := s.manager.Status()
+		hySt = hysteriaStatusDTO{
+			Installed: st.Installed,
+			Running:   st.Running,
+			Version:   st.Version,
+			Port:      st.Port,
+		}
+	}
+
 	writeJSON(w, http.StatusOK, dashboardStatsDTO{
 		TotalUsers:     int(total),
 		ActiveUsers:    int(active),
 		TotalTrafficGb: float64(trafficSum) / GiB,
 		Uptime:         formatUptime(time.Since(processStart)),
-		Hysteria: hysteriaStatusDTO{
-			Installed: false,
-			Running:   false,
-			Version:   "",
-			Port:      0,
-		},
+		Hysteria:       hySt,
 	})
 }
 
