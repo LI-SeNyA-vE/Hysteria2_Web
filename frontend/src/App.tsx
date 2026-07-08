@@ -6,6 +6,7 @@ import { Servers } from '@/pages/Servers'
 import { Users } from '@/pages/Users'
 import { Subscriptions } from '@/pages/Subscriptions'
 import { Cascade } from '@/pages/Cascade'
+import { Logs } from '@/pages/Logs'
 import { Settings } from '@/pages/Settings'
 
 const router = createBrowserRouter([
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'users',                element: <Users />        },
       { path: 'subscriptions',        element: <Subscriptions /> },
       { path: 'cascade',              element: <Cascade />      },
+      { path: 'logs',                 element: <Logs />         },
       { path: 'settings',             element: <Settings />     },
     ],
   },

@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"hysteria2-web/internal/db"
+	"hysteria2-web/internal/logbuf"
 	"hysteria2-web/internal/models"
 )
 
@@ -64,14 +65,18 @@ type Manager struct {
 	dataDir   string
 	port      int
 	db        *db.DB
+	logBuf    *logbuf.Buffer
 	mu        sync.Mutex
 	srv       *supervisor // server-процесс
 	clientSrv *supervisor // client-процесс (каскад, только на node1)
 }
 
 func New(dataDir string, port int, d *db.DB) *Manager {
-	return &Manager{dataDir: dataDir, port: port, db: d}
+	return &Manager{dataDir: dataDir, port: port, db: d, logBuf: logbuf.New()}
 }
+
+// LogBuf возвращает буфер логов hysteria2 (stdout/stderr дочернего процесса).
+func (m *Manager) LogBuf() *logbuf.Buffer { return m.logBuf }
 
 // Install скачивает pinned-бинарь hysteria2, если ещё не установлен.
 func (m *Manager) Install(ctx context.Context) error {
@@ -105,7 +110,7 @@ func (m *Manager) Start() error {
 
 	m.mu.Lock()
 	if m.srv == nil {
-		m.srv = newSupervisor(m.binaryPath(), m.serverYAMLPath())
+		m.srv = newSupervisor(m.binaryPath(), m.serverYAMLPath(), m.logBuf)
 	}
 	m.mu.Unlock()
 
@@ -264,7 +269,7 @@ func (m *Manager) ApplyNodeConfig(ctx context.Context, nc NodeConfig) error {
 		if m.srv != nil {
 			m.srv.stop()
 		}
-		m.srv = newSupervisor(m.binaryPath(), m.serverYAMLPath())
+		m.srv = newSupervisor(m.binaryPath(), m.serverYAMLPath(), m.logBuf)
 		m.mu.Unlock()
 		m.srv.start()
 	} else {
@@ -287,7 +292,7 @@ func (m *Manager) ApplyNodeConfig(ctx context.Context, nc NodeConfig) error {
 		if m.clientSrv != nil {
 			m.clientSrv.stop()
 		}
-		m.clientSrv = newClientSupervisor(m.binaryPath(), m.clientYAMLPath())
+		m.clientSrv = newClientSupervisor(m.binaryPath(), m.clientYAMLPath(), m.logBuf)
 		m.mu.Unlock()
 		m.clientSrv.start()
 	} else {

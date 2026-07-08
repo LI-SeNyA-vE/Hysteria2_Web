@@ -37,7 +37,7 @@ export function Dashboard() {
     else if (isSuccess) setOffline(false)
   }, [isError, isSuccess])
 
-  const { data: updateInfo } = useQuery({
+  const { data: updateInfo, isFetching: checkingUpdate, refetch: recheckUpdate } = useQuery({
     queryKey: ['update-check'],
     queryFn: checkUpdate,
     refetchInterval: 60 * 60 * 1000, // раз в час
@@ -58,13 +58,26 @@ export function Dashboard() {
     <div className="min-h-screen" style={{ padding: '40px 48px' }}>
 
       {/* Заголовок страницы */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 className="text-[22px] font-semibold text-text" style={{ letterSpacing: '-0.02em' }}>
-          Главная
-        </h1>
-        {offline && (
-          <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Нет соединения с сервером</p>
-        )}
+      <div className="flex items-start justify-between" style={{ marginBottom: 32 }}>
+        <div>
+          <h1 className="text-[22px] font-semibold text-text" style={{ letterSpacing: '-0.02em' }}>
+            Главная
+          </h1>
+          {offline && (
+            <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Нет соединения с сервером</p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          loading={checkingUpdate}
+          onClick={() => recheckUpdate()}
+        >
+          <RefreshCw className="w-3 h-3" />
+          {updateInfo && !updateInfo.updateAvailable && !checkingUpdate
+            ? `Актуально ${updateInfo.currentVersion}`
+            : 'Проверить обновление'}
+        </Button>
       </div>
 
       {/* Баннер обновления */}

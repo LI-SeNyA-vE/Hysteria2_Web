@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Users, Link2,
-  GitBranch, Settings, LogOut, Zap,
+  GitBranch, Settings, LogOut, Zap, ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -11,6 +11,7 @@ const NAV = [
   { to: '/users',         icon: Users,           label: 'Пользователи'  },
   { to: '/subscriptions', icon: Link2,           label: 'Подписки'      },
   { to: '/cascade',       icon: GitBranch,       label: 'Каскад'        },
+  { to: '/logs',          icon: ScrollText,      label: 'Логи'          },
   { to: '/settings',      icon: Settings,        label: 'Настройки'     },
 ]
 

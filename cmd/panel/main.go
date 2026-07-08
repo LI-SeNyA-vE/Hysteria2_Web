@@ -14,18 +14,25 @@ import (
 
 	"gorm.io/gorm"
 
+	"io"
+
 	"hysteria2-web/internal/api"
 	"hysteria2-web/internal/auth"
 	"hysteria2-web/internal/cluster"
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/db"
 	"hysteria2-web/internal/hysteria"
+	"hysteria2-web/internal/logbuf"
 	"hysteria2-web/internal/models"
 )
 
 func main() {
 	cfgPath := flag.String("config", "panel.yaml", "путь к файлу конфигурации")
 	flag.Parse()
+
+	// Перехватываем log.Default() в кольцевой буфер (параллельно с os.Stderr).
+	panelBuf := logbuf.New()
+	log.SetOutput(io.MultiWriter(os.Stderr, panelBuf))
 
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
@@ -83,7 +90,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr,
-		Handler:      api.NewServer(a, d, cfg.Dev, mgr, reg).Handler(),
+		Handler:      api.NewServer(a, d, cfg.Dev, mgr, reg, panelBuf).Handler(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

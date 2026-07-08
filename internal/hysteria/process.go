@@ -2,6 +2,7 @@ package hysteria
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -12,18 +13,19 @@ import (
 type supervisor struct {
 	binPath   string
 	args      []string // аргументы процесса, например ["server","-c","server.yaml"]
+	logWriter io.Writer
 	mu        sync.Mutex
 	cmd       *exec.Cmd
 	isRunning bool
 	cancel    context.CancelFunc
 }
 
-func newSupervisor(binPath, configPath string) *supervisor {
-	return &supervisor{binPath: binPath, args: []string{"server", "-c", configPath}}
+func newSupervisor(binPath, configPath string, lw io.Writer) *supervisor {
+	return &supervisor{binPath: binPath, args: []string{"server", "-c", configPath}, logWriter: lw}
 }
 
-func newClientSupervisor(binPath, configPath string) *supervisor {
-	return &supervisor{binPath: binPath, args: []string{"client", "-c", configPath}}
+func newClientSupervisor(binPath, configPath string, lw io.Writer) *supervisor {
+	return &supervisor{binPath: binPath, args: []string{"client", "-c", configPath}, logWriter: lw}
 }
 
 func (s *supervisor) start() {
@@ -48,8 +50,9 @@ func (s *supervisor) supervise(ctx context.Context) {
 		}
 
 		cmd := exec.Command(s.binPath, s.args...) //nolint:gosec
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		out := io.MultiWriter(os.Stdout, s.logWriter)
+		cmd.Stdout = out
+		cmd.Stderr = out
 
 		s.mu.Lock()
 		s.cmd = cmd

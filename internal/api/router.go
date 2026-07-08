@@ -10,6 +10,7 @@ import (
 	"hysteria2-web/internal/cluster"
 	"hysteria2-web/internal/db"
 	"hysteria2-web/internal/hysteria"
+	"hysteria2-web/internal/logbuf"
 )
 
 // Server — HTTP-сервер API со всеми зависимостями.
@@ -19,10 +20,11 @@ type Server struct {
 	dev      bool
 	manager  *hysteria.Manager // nil для ролей без hysteria (pure main)
 	registry *cluster.Registry // nil для ролей node (без БД)
+	panelLog *logbuf.Buffer    // буфер логов самой панели
 }
 
-func NewServer(a *auth.Auth, d *db.DB, dev bool, mgr *hysteria.Manager, reg *cluster.Registry) *Server {
-	return &Server{auth: a, db: d, dev: dev, manager: mgr, registry: reg}
+func NewServer(a *auth.Auth, d *db.DB, dev bool, mgr *hysteria.Manager, reg *cluster.Registry, pl *logbuf.Buffer) *Server {
+	return &Server{auth: a, db: d, dev: dev, manager: mgr, registry: reg, panelLog: pl}
 }
 
 // Handler строит chi-роутер для всей панели.
@@ -68,6 +70,8 @@ func (s *Server) Handler() http.Handler {
 
 		r.Get("/api/update/check", s.handleCheckUpdate)
 		r.Post("/api/update/apply", s.handleApplyUpdate)
+
+		r.Get("/api/logs", s.handleGetLogs)
 	})
 
 	// Нодовые маршруты (X-Node-Token, без JWT).
