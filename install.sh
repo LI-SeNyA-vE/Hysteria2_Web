@@ -70,6 +70,18 @@ case "$ROLE" in
     ;;
 esac
 
+# ── Проверка доступности портов ───────────────────────────────────────────────
+HTTP_PORT="${HTTP_ADDR##*:}"
+# Проверяем только если сервис НЕ запущен (при обновлении порт будет занят самой панелью)
+if ! systemctl is-active --quiet hysteria2-panel 2>/dev/null; then
+    if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE ":${HTTP_PORT}$"; then
+        error "Порт ${HTTP_PORT} уже занят. Укажите другой: PANEL_HTTP_ADDR=:9090 ... bash"
+    fi
+fi
+if ss -ulnH 2>/dev/null | awk '{print $4}' | grep -qE ":${HY2_PORT}$"; then
+    warn "UDP-порт ${HY2_PORT} уже занят — hysteria2 может не запуститься. Укажите другой: PANEL_HY2_PORT=8443 ... bash"
+fi
+
 # ── Информация об установке ───────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════╗"
