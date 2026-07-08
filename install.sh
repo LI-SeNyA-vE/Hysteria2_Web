@@ -108,6 +108,27 @@ chmod +x "$TMP_BINARY"
 mv -f "$TMP_BINARY" "$BINARY"
 info "Бинарь установлен в $BINARY"
 
+# ── Скачивание hysteria2 (только для ролей, запускающих VPN-сервер) ──────────
+if [[ "$ROLE" == "main_node1" || "$ROLE" == "node1" || "$ROLE" == "node2" ]]; then
+    HY2_VERSION="v2.9.3"
+    HY2_TAG="app%2F${HY2_VERSION}"
+    HY2_ASSET="hysteria-linux-${GOARCH}"
+    HY2_URL="https://github.com/apernet/hysteria/releases/download/${HY2_TAG}/${HY2_ASSET}"
+    HY2_BIN_DIR="${DATA_DIR}/bin"
+    HY2_BIN="${HY2_BIN_DIR}/hysteria"
+
+    mkdir -p "$HY2_BIN_DIR"
+    if [[ ! -f "$HY2_BIN" ]]; then
+        info "Скачиваем hysteria2 ${HY2_VERSION} ..."
+        curl -fL --location "$HY2_URL" -o "${HY2_BIN}.tmp"
+        chmod +x "${HY2_BIN}.tmp"
+        mv -f "${HY2_BIN}.tmp" "$HY2_BIN"
+        info "hysteria2 установлен в $HY2_BIN"
+    else
+        info "hysteria2 уже установлен: $HY2_BIN"
+    fi
+fi
+
 # ── Конфиг ───────────────────────────────────────────────────────────────────
 cat > "$CONFIG_FILE" <<YAML
 role: $ROLE

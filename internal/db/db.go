@@ -79,7 +79,7 @@ func (d *DB) seedDefaultUser() {
 		Name:     "default",
 		UUID:     newUUID(),
 		Password: hex.EncodeToString(b),
-		IsActive: false,
+		IsActive: true,
 	}).Error
 }
 
