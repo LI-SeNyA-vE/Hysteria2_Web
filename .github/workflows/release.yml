@@ -10,54 +10,83 @@ permissions:
 
 jobs:
   build:
+    name: Build binaries
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goarch: [amd64, arm64]
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          go-version: "1.23"
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install cross compiler (arm64)
-        if: matrix.goarch == 'arm64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Build panel-${{ matrix.goarch }}.zip
-        env:
-          CGO_ENABLED: "1"
-          GOOS: linux
-          GOARCH: ${{ matrix.goarch }}
+      - name: Build frontend
         run: |
-          if [ "${{ matrix.goarch }}" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-          else
-            export CC=gcc
-          fi
-          go build -trimpath -ldflags="-s -w" -o panel ./cmd/panel/
-          zip "panel-${{ matrix.goarch }}.zip" panel
+          cd frontend
+          npm ci
+          npm run build
 
-      - uses: actions/upload-artifact@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          name: panel-${{ matrix.goarch }}
-          path: panel-${{ matrix.goarch }}.zip
+          go-version: "1.25"
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          go build \
+            -ldflags="-s -w -X hysteria2-web/internal/version.Version=${{ github.ref_name }}" \
+            -o panel-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/panel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: panel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: panel-${{ matrix.goos }}-${{ matrix.goarch }}
 
   release:
-    needs: build
+    name: Create GitHub release
     runs-on: ubuntu-latest
-
+    needs: build
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create release
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/panel-amd64.zip
-            dist/panel-arm64.zip
+          files: dist/panel-*
           generate_release_notes: true
+          body: |
+            ## Установка
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/install.sh | sudo bash
+            ```
+
+            ## Бинари
+
+            | ОС | Архитектура | Файл |
+            |---|---|---|
+            | Linux | amd64 (x86_64) | `panel-linux-amd64` |
+            | Linux | arm64 (aarch64) | `panel-linux-arm64` |

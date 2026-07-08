@@ -1,0 +1,220 @@
+package cluster
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+	"time"
+
+	"hysteria2-web/internal/db"
+	"hysteria2-web/internal/models"
+)
+
+// Registry — серверная сторона протокола (работает на main).
+type Registry struct {
+	db *db.DB
+}
+
+func NewRegistry(d *db.DB) *Registry {
+	return &Registry{db: d}
+}
+
+// Register создаёт/обновляет запись Server и возвращает DesiredNodeConfig.
+func (r *Registry) Register(req RegisterRequest) (DesiredNodeConfig, error) {
+	now := time.Now()
+	var s models.Server
+	err := r.db.Where("name = ?", req.Name).First(&s).Error
+	if err != nil {
+		s = models.Server{
+			Name:          req.Name,
+			Role:          req.Role,
+			PublicIP:      req.PublicIP,
+			Hy2Port:       req.Hy2Port,
+			Hy2Version:    req.Hy2Version,
+			CertSHA256:    req.CertSHA256,
+			CascadeTarget: req.CascadeTarget,
+			LastSeenAt:    &now,
+		}
+		if err := r.db.Create(&s).Error; err != nil {
+			return DesiredNodeConfig{}, err
+		}
+	} else {
+		updates := map[string]any{
+			"role":         req.Role,
+			"public_ip":    req.PublicIP,
+			"hy2_port":     req.Hy2Port,
+			"hy2_version":  req.Hy2Version,
+			"cert_sha256":  req.CertSHA256,
+			"last_seen_at": &now,
+		}
+		if req.CascadeTarget != "" {
+			updates["cascade_target"] = req.CascadeTarget
+		}
+		r.db.Model(&s).Updates(updates)
+	}
+	log.Printf("cluster: нода «%s» зарегистрирована (роль: %s, ip: %s)", req.Name, req.Role, req.PublicIP)
+	return r.buildDesiredConfig(req.Role, req.Name), nil
+}
+
+// Heartbeat обновляет lastSeenAt, аккумулирует трафик и возвращает DesiredNodeConfig.
+func (r *Registry) Heartbeat(req HeartbeatRequest) (DesiredNodeConfig, error) {
+	now := time.Now()
+	var s models.Server
+	if err := r.db.Where("name = ?", req.Name).First(&s).Error; err != nil {
+		return DesiredNodeConfig{}, err
+	}
+
+	updates := map[string]any{"last_seen_at": &now}
+	if req.CertSHA256 != "" && req.CertSHA256 != s.CertSHA256 {
+		updates["cert_sha256"] = req.CertSHA256
+	}
+	r.db.Model(&s).Updates(updates)
+
+	// Аккумулируем трафик пользователей
+	for name, usage := range req.Usage {
+		delta := usage.TX + usage.RX
+		if delta <= 0 {
+			continue
+		}
+		if err := r.db.Exec(
+			"UPDATE users SET traffic_used_bytes = traffic_used_bytes + ? WHERE name = ?",
+			delta, name,
+		).Error; err != nil {
+			log.Printf("cluster: трафик «%s»: %v", name, err)
+		}
+	}
+
+	return r.buildDesiredConfig(s.Role, s.Name), nil
+}
+
+// buildDesiredConfig формирует конфиг, который нода должна применить.
+// serverName — уникальное имя ноды (hostname), нужно для поиска её CascadeTarget.
+func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig {
+	obfs, _ := r.db.GetSetting(models.SettingObfsPassword)
+	masq, _ := r.db.GetSettingOrDefault(models.SettingMasqueradeURL, "https://news.ycombinator.com/")
+	statsSecret, _ := r.db.GetSetting(models.SettingStatsSecret)
+
+	// Каскадные учётные данные — генерируются один раз и хранятся в Settings.
+	cascadeUser, cascadePass := r.ensureCascadeCredentials()
+
+	users := make(map[string]string)
+	runNode := true
+	var cascadeClient *CascadeClientConfig
+
+	switch role {
+	case models.RoleNode2:
+		// node2 принимает только системного пользователя-каскада
+		if cascadeUser != "" {
+			users[cascadeUser] = cascadePass
+		} else {
+			runNode = false
+		}
+
+	case models.RoleNode1:
+		// node1 принимает всех активных пользователей
+		var activeUsers []models.User
+		r.db.Where("is_active = ?", true).Find(&activeUsers)
+		for _, u := range activeUsers {
+			users[u.Name] = u.Password
+		}
+		// Ищем CascadeTarget из записи этой ноды в БД
+		var node1Server models.Server
+		r.db.Where("name = ?", serverName).First(&node1Server)
+		cascadeClient = r.buildCascadeClientForNode1(node1Server.CascadeTarget, cascadeUser, cascadePass, obfs)
+		// Не запускаем hysteria без юзеров — он отказывается стартовать с пустым userpass
+		if len(users) == 0 {
+			runNode = false
+		}
+
+	default:
+		var activeUsers []models.User
+		r.db.Where("is_active = ?", true).Find(&activeUsers)
+		for _, u := range activeUsers {
+			users[u.Name] = u.Password
+		}
+		if len(users) == 0 {
+			runNode = false
+		}
+	}
+
+	serverCfg := NodeServerConfig{
+		ObfsPassword:  obfs,
+		MasqueradeURL: masq,
+		StatsSecret:   statsSecret,
+		Users:         users,
+	}
+
+	desired := DesiredNodeConfig{
+		ServerConfig:  serverCfg,
+		CascadeClient: cascadeClient,
+		Run:           runNode,
+	}
+	desired.Version = configVersion(serverCfg)
+	return desired
+}
+
+// buildCascadeClientForNode1 возвращает CascadeClientConfig для node1→node2.
+// cascadeTarget — конкретное имя node2; если пусто — используется первая доступная.
+func (r *Registry) buildCascadeClientForNode1(cascadeTarget, cascadeUser, cascadePass, obfs string) *CascadeClientConfig {
+	var node2 models.Server
+	var err error
+	if cascadeTarget != "" {
+		err = r.db.Where("name = ? AND role = ?", cascadeTarget, models.RoleNode2).First(&node2).Error
+	} else {
+		err = r.db.Where("role = ?", models.RoleNode2).First(&node2).Error
+	}
+	if err != nil {
+		return nil // node2 не найдена
+	}
+	if node2.CertSHA256 == "" {
+		return nil // ещё нет сертификата
+	}
+	return &CascadeClientConfig{
+		ServerAddr:   fmt.Sprintf("%s:%d", node2.PublicIP, node2.Hy2Port),
+		UserName:     cascadeUser,
+		Password:     cascadePass,
+		ObfsPassword: obfs,
+		PinSHA256:    node2.CertSHA256,
+	}
+}
+
+// ensureCascadeCredentials возвращает cascade_user/cascade_password, генерируя их при первом вызове.
+func (r *Registry) ensureCascadeCredentials() (user, pass string) {
+	user, _ = r.db.GetSetting(models.SettingCascadeUser)
+	pass, _ = r.db.GetSetting(models.SettingCascadePassword)
+	if user != "" {
+		return
+	}
+	user = "cascade-" + randomHex(6)
+	pass = randomHex(24)
+	_ = r.db.SetSetting(models.SettingCascadeUser, user)
+	_ = r.db.SetSetting(models.SettingCascadePassword, pass)
+	return
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// configVersion вычисляет детерминированный хэш конфига — меняется только при изменении контента.
+func configVersion(cfg NodeServerConfig) int64 {
+	var sb strings.Builder
+	keys := make([]string, 0, len(cfg.Users))
+	for k := range cfg.Users {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		sb.WriteString(k + "=" + cfg.Users[k] + ";")
+	}
+	sb.WriteString(cfg.ObfsPassword + "|" + cfg.MasqueradeURL + "|" + cfg.StatsSecret)
+	h := sha256.Sum256([]byte(sb.String()))
+	return int64(binary.LittleEndian.Uint64(h[:8]))
+}

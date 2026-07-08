@@ -1,0 +1,94 @@
+services:
+
+  # ── База данных ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: panel
+      POSTGRES_PASSWORD: panel
+      POSTGRES_DB: hy2panel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # DataGrip: localhost:5433 (5432 может быть занят)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U panel -d hy2panel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Главная панель (роль: main_node1) ─────────────────────────────────────
+  # БД + UI + hysteria2 в одном контейнере. Основной сервер для тестирования M4.
+  panel:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8090:8080"        # UI + API: http://localhost:8090
+      - "1443:1443/udp"    # VPN-клиенты → подключаются после Install+Start
+    volumes:
+      - panel_data:/app/data   # бинарь hysteria2, сертификат, server.yaml
+    environment:
+      PANEL_ROLE: main_node1
+      PANEL_DATA_DIR: /app/data
+      PANEL_HTTP_ADDR: ":8080"
+      PANEL_HY2_PORT: "1443"
+      PANEL_DB_DSN: "host=db user=panel password=panel dbname=hy2panel sslmode=disable"
+      PANEL_PUBLIC_IP: "127.0.0.1"
+      PANEL_DEV: "1"
+      PANEL_BOOTSTRAP_NODE_TOKEN: "dev-node-token-hysteria2"
+
+  # ── Нода 1 (роль: node1) ──────────────────────────────────────────────────
+  # Будет активна в M5 (регистрация нод) и M6 (каскад). Пока запускается как
+  # Go HTTP-сервер без hysteria — всё готово, ждёт реализации nodeagent.
+  node1:
+    build: .
+    restart: unless-stopped
+    hostname: node1          # используется как имя при регистрации
+    depends_on:
+      - panel
+    ports:
+      - "8091:8080"          # HTTP API ноды (для отладки)
+      - "2443:2443/udp"      # Hysteria2 VPN для node1
+    volumes:
+      - node1_data:/app/data
+    environment:
+      PANEL_ROLE: node1
+      PANEL_DATA_DIR: /app/data
+      PANEL_HTTP_ADDR: ":8080"
+      PANEL_HY2_PORT: "2443"
+      PANEL_MAIN_URL: "http://panel:8080"
+      PANEL_NODE_TOKEN: "dev-node-token-hysteria2"
+      PANEL_PUBLIC_IP: "127.0.0.1"
+      PANEL_CASCADE_TARGET: "node2"  # имя конкретной node2 для каскада
+
+  # ── Нода 2 (роль: node2) ──────────────────────────────────────────────────
+  # Выходная нода для каскада node1→node2 (M6).
+  node2:
+    build: .
+    restart: unless-stopped
+    hostname: node2          # используется как имя при регистрации
+    depends_on:
+      - panel
+    ports:
+      - "8092:8080"          # HTTP API ноды (для отладки)
+      - "2444:2444/udp"      # Hysteria2 для каскада
+    volumes:
+      - node2_data:/app/data
+    environment:
+      PANEL_ROLE: node2
+      PANEL_DATA_DIR: /app/data
+      PANEL_HTTP_ADDR: ":8080"
+      PANEL_HY2_PORT: "2444"
+      PANEL_MAIN_URL: "http://panel:8080"
+      PANEL_NODE_TOKEN: "dev-node-token-hysteria2"
+      PANEL_PUBLIC_IP: "node2"
+
+volumes:
+  pgdata:
+  panel_data:
+  node1_data:
+  node2_data:

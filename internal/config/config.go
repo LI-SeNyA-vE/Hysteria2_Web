@@ -1,229 +1,135 @@
+// Package config загружает конфигурацию панели из YAML + env-оверрайдов.
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
-	"time"
+	"strconv"
+
+	"gopkg.in/yaml.v3"
+
+	"hysteria2-web/internal/models"
 )
 
-const DefaultPath = "panel.json"
-
-const defaultSubPath = "sub"
-
+// Config — конфигурация одного экземпляра панели.
 type Config struct {
-	DBPath       string        `json:"db_path"`
-	LogPath      string        `json:"log_path"`
-	HTTPAddr     string        `json:"http_addr"`
-	SyncInterval time.Duration `json:"-"`
-	SubDomain    string        `json:"sub_domain"`
-	SubPath      string        `json:"sub_path"`
+	Role               string `yaml:"role"`
+	HTTPAddr           string `yaml:"httpAddr"`
+	DataDir            string `yaml:"dataDir"`
+	PublicIP           string `yaml:"publicIp"`
+	Dev                bool   `yaml:"dev"`
+	BootstrapNodeToken string `yaml:"bootstrapNodeToken"`
+	// CascadeTarget — имя node2 для каскадирования (только для роли node1).
+	// Если пусто — используется первая доступная node2.
+	CascadeTarget string `yaml:"cascadeTarget"`
+
+	DB struct {
+		DSN string `yaml:"dsn"`
+	} `yaml:"db"`
+
+	Main struct {
+		URL   string `yaml:"url"`
+		Token string `yaml:"token"`
+	} `yaml:"main"`
+
+	Hy2 struct {
+		Port int `yaml:"port"`
+	} `yaml:"hy2"`
 }
 
-type fileConfig struct {
-	DBPath       string `json:"db_path"`
-	LogPath      string `json:"log_path"`
-	HTTPAddr     string `json:"http_addr"`
-	SyncInterval string `json:"sync_interval"`
-	SubDomain    string `json:"sub_domain"`
-	SubPath      string `json:"sub_path"`
-}
-
-var global Config
-var configPath = DefaultPath
-
-func Default() Config {
-	return Config{
-		DBPath:       "./panel.db",
-		LogPath:      "./panel.log",
-		HTTPAddr:     "0.0.0.0:8787",
-		SyncInterval: 30 * time.Second,
-		SubPath:      defaultSubPath,
+// Load читает YAML (если path не пуст и файл существует), затем накладывает
+// env-оверрайды и валидирует по роли. Работа без файла обязательна (Docker).
+func Load(path string) (*Config, error) {
+	c := &Config{
+		Role:     models.RoleMainNode1,
+		HTTPAddr: ":8080",
+		DataDir:  "./data",
+		PublicIP: "127.0.0.1",
 	}
-}
+	c.Hy2.Port = 443
 
-func Get() Config {
-	if global == (Config{}) {
-		return Default()
-	}
-	return global
-}
-
-func Set(cfg Config) {
-	global = cfg
-}
-
-func SetConfigPath(path string) {
 	if path != "" {
-		configPath = path
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if err := yaml.Unmarshal(data, c); err != nil {
+				return nil, fmt.Errorf("парсинг %s: %w", path, err)
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("чтение %s: %w", path, err)
+		}
+	}
+
+	c.applyEnv()
+
+	if err := c.validate(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (c *Config) applyEnv() {
+	if v := os.Getenv("PANEL_ROLE"); v != "" {
+		c.Role = v
+	}
+	if v := os.Getenv("PANEL_HTTP_ADDR"); v != "" {
+		c.HTTPAddr = v
+	}
+	if v := os.Getenv("PANEL_DATA_DIR"); v != "" {
+		c.DataDir = v
+	}
+	if v := os.Getenv("PANEL_PUBLIC_IP"); v != "" {
+		c.PublicIP = v
+	}
+	if v := os.Getenv("PANEL_DB_DSN"); v != "" {
+		c.DB.DSN = v
+	}
+	if v := os.Getenv("PANEL_MAIN_URL"); v != "" {
+		c.Main.URL = v
+	}
+	if v := os.Getenv("PANEL_NODE_TOKEN"); v != "" {
+		c.Main.Token = v
+	}
+	if v := os.Getenv("PANEL_HY2_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.Hy2.Port = n
+		}
+	}
+	if v := os.Getenv("PANEL_DEV"); v == "1" || v == "true" {
+		c.Dev = true
+	}
+	if v := os.Getenv("PANEL_BOOTSTRAP_NODE_TOKEN"); v != "" {
+		c.BootstrapNodeToken = v
+	}
+	if v := os.Getenv("PANEL_CASCADE_TARGET"); v != "" {
+		c.CascadeTarget = v
 	}
 }
 
-func ConfigPath() string {
-	return configPath
-}
-
-func Load(path string) (Config, error) {
-	if path == "" {
-		path = DefaultPath
-	}
-	configPath = path
-	cfg := Default()
-	created := false
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return Config{}, fmt.Errorf("read config %s: %w", path, err)
+func (c *Config) validate() error {
+	switch c.Role {
+	case models.RoleMain, models.RoleMainNode1:
+		// DSN опционален: пустой → SQLite в dataDir/panel.db
+	case models.RoleNode1, models.RoleNode2:
+		if c.Main.URL == "" || c.Main.Token == "" {
+			return fmt.Errorf("роль %s требует main.url и main.token", c.Role)
 		}
-		if err := Save(path, cfg); err != nil {
-			return Config{}, err
-		}
-		created = true
-	} else {
-		var raw fileConfig
-		if err := json.Unmarshal(data, &raw); err != nil {
-			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
-		}
-		if err := applyFile(&cfg, raw); err != nil {
-			return Config{}, fmt.Errorf("config %s: %w", path, err)
-		}
-	}
-
-	if err := resolvePathsRelativeToConfig(&cfg, path); err != nil {
-		return Config{}, fmt.Errorf("config %s: %w", path, err)
-	}
-
-	global = cfg
-	if created {
-		abs, _ := filepath.Abs(path)
-		fmt.Fprintf(os.Stderr, "Создан файл конфигурации: %s\n", abs)
-	}
-	return cfg, nil
-}
-
-func Save(path string, cfg Config) error {
-	if path == "" {
-		path = DefaultPath
-	}
-	data, err := json.MarshalIndent(cfg.toFile(), "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode config: %w", err)
-	}
-	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("write config %s: %w", path, err)
+	default:
+		return fmt.Errorf("неизвестная роль %q", c.Role)
 	}
 	return nil
 }
 
-func (c Config) toFile() fileConfig {
-	subPath := c.SubPath
-	if subPath == "" {
-		subPath = defaultSubPath
-	}
-	return fileConfig{
-		DBPath:       c.DBPath,
-		LogPath:      c.LogPath,
-		HTTPAddr:     c.HTTPAddr,
-		SyncInterval: c.SyncInterval.String(),
-		SubDomain:    c.SubDomain,
-		SubPath:      subPath,
-	}
+// HasDatabase сообщает, поднимает ли этот экземпляр локальную БД.
+func (c *Config) HasDatabase() bool {
+	return c.Role == models.RoleMain || c.Role == models.RoleMainNode1
 }
 
-func applyFile(cfg *Config, raw fileConfig) error {
-	if raw.DBPath != "" {
-		cfg.DBPath = raw.DBPath
-	}
-	if raw.LogPath != "" {
-		cfg.LogPath = raw.LogPath
-	}
-	if raw.HTTPAddr != "" {
-		cfg.HTTPAddr = raw.HTTPAddr
-	}
-	if raw.SubDomain != "" {
-		cfg.SubDomain = strings.TrimRight(strings.TrimSpace(raw.SubDomain), "/")
-	}
-	if raw.SubPath != "" {
-		path, err := normalizeSubPath(raw.SubPath)
-		if err != nil {
-			return err
-		}
-		cfg.SubPath = path
-	}
-
-	if cfg.SubPath == "" {
-		cfg.SubPath = defaultSubPath
-	}
-
-	intervalStr := raw.SyncInterval
-	if intervalStr == "" {
-		intervalStr = "30s"
-	}
-	interval, err := time.ParseDuration(intervalStr)
-	if err != nil {
-		return fmt.Errorf("parse sync_interval %q: %w", intervalStr, err)
-	}
-	cfg.SyncInterval = interval
-	return nil
+// RunsHysteria сообщает, управляет ли экземпляр локальным hysteria-процессом.
+func (c *Config) RunsHysteria() bool {
+	return c.Role == models.RoleNode1 || c.Role == models.RoleNode2 || c.Role == models.RoleMainNode1
 }
 
-func normalizeSubPath(path string) (string, error) {
-	p := strings.Trim(strings.TrimSpace(path), "/")
-	if p == "" {
-		return defaultSubPath, nil
-	}
-	if strings.Contains(p, "/") || strings.Contains(p, "..") {
-		return "", fmt.Errorf("invalid sub_path %q", path)
-	}
-	return p, nil
-}
-
-func Prepare(cfg Config) (Config, error) {
-	cfg.DBPath = strings.TrimSpace(cfg.DBPath)
-	cfg.LogPath = strings.TrimSpace(cfg.LogPath)
-	cfg.HTTPAddr = strings.TrimSpace(cfg.HTTPAddr)
-	cfg.SubDomain = strings.TrimRight(strings.TrimSpace(cfg.SubDomain), "/")
-
-	if cfg.DBPath == "" {
-		return Config{}, fmt.Errorf("db_path не может быть пустым")
-	}
-	if cfg.LogPath == "" {
-		return Config{}, fmt.Errorf("log_path не может быть пустым")
-	}
-	if cfg.HTTPAddr == "" {
-		return Config{}, fmt.Errorf("http_addr не может быть пустым")
-	}
-	if cfg.SyncInterval <= 0 {
-		return Config{}, fmt.Errorf("sync_interval должен быть больше 0")
-	}
-
-	path, err := normalizeSubPath(cfg.SubPath)
-	if err != nil {
-		return Config{}, err
-	}
-	cfg.SubPath = path
-	return cfg, nil
-}
-
-func resolvePathsRelativeToConfig(cfg *Config, configFilePath string) error {
-	baseDir, err := filepath.Abs(filepath.Dir(configFilePath))
-	if err != nil {
-		return fmt.Errorf("resolve config dir: %w", err)
-	}
-
-	for _, target := range []*string{&cfg.DBPath, &cfg.LogPath} {
-		if *target == "" || filepath.IsAbs(*target) {
-			continue
-		}
-		abs, err := filepath.Abs(filepath.Join(baseDir, *target))
-		if err != nil {
-			return fmt.Errorf("resolve path %q: %w", *target, err)
-		}
-		*target = abs
-	}
-	return nil
+// IsNode сообщает, что экземпляр работает в роли ноды (регистрируется на main).
+func (c *Config) IsNode() bool {
+	return c.Role == models.RoleNode1 || c.Role == models.RoleNode2
 }
