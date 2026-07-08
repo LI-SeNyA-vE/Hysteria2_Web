@@ -96,8 +96,11 @@ fi
 
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 info "Скачиваем $DOWNLOAD_URL ..."
-curl -fL --location "$DOWNLOAD_URL" -o "$BINARY"
-chmod +x "$BINARY"
+# Скачиваем во временный файл — нельзя перезаписать запущенный бинарь напрямую
+TMP_BINARY="$BINARY.tmp"
+curl -fL --location "$DOWNLOAD_URL" -o "$TMP_BINARY"
+chmod +x "$TMP_BINARY"
+mv -f "$TMP_BINARY" "$BINARY"
 info "Бинарь установлен в $BINARY"
 
 # ── Конфиг ───────────────────────────────────────────────────────────────────
