@@ -52,6 +52,8 @@ export function Dashboard() {
   const reloadMut  = useMutation({ mutationFn: reloadConfig,    onSuccess: invDelayed })
   const updateMut  = useMutation({ mutationFn: applyUpdate })
 
+  const hyError = startMut.error?.message || reloadMut.error?.message || installMut.error?.message
+
   const hy = data.hysteria
 
   return (
@@ -191,6 +193,15 @@ export function Dashboard() {
             <span>Версия <span className="text-sub font-medium">{hy.version}</span></span>
             <span>Порт <span className="text-sub font-medium">:{hy.port}</span></span>
           </div>
+
+          {hyError && (
+            <div
+              className="mt-4 rounded-xl px-4 py-3 text-[13px]"
+              style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', boxShadow: '0 0 0 1px rgba(239,68,68,0.25)' }}
+            >
+              {hyError}
+            </div>
+          )}
 
           {data.totalUsers > 0 && (
             <div style={{ marginTop: 20 }}>

@@ -92,6 +92,14 @@ func (m *Manager) Start() error {
 		return fmt.Errorf("hysteria2 не установлен, нажмите «Установить» сначала")
 	}
 
+	if m.db != nil {
+		var count int64
+		m.db.Model(&models.User{}).Where("is_active = ?", true).Count(&count)
+		if count == 0 {
+			return fmt.Errorf("нет активных пользователей — создайте хотя бы одного в разделе «Пользователи»")
+		}
+	}
+
 	if !m.certExists() {
 		pin, err := m.generateCert()
 		if err != nil {
