@@ -3,8 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-
-	"hysteria2-web/internal/models"
 )
 
 func (s *Server) hysteriaGuard(w http.ResponseWriter) bool {
@@ -68,18 +66,6 @@ func (s *Server) handleHysteriaInstall(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	var count int64
-	s.db.Model(&models.User{}).Count(&count)
-	if count == 0 {
-		_ = s.db.Create(&models.User{
-			Name:     "default",
-			UUID:     generateUUID(),
-			Password: generateUserPassword(12),
-			IsActive: false,
-		}).Error
-	}
-
 	w.WriteHeader(http.StatusNoContent)
 }
 

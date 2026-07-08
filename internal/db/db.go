@@ -4,6 +4,8 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -57,7 +59,36 @@ func Open(dsn, dataDir string) (*DB, error) {
 	); err != nil {
 		return nil, fmt.Errorf("миграция: %w", err)
 	}
-	return &DB{g}, nil
+
+	d := &DB{g}
+	d.seedDefaultUser()
+	return d, nil
+}
+
+// seedDefaultUser создаёт неактивного пользователя "default" при первом старте,
+// если в БД нет ни одного пользователя.
+func (d *DB) seedDefaultUser() {
+	var count int64
+	d.Model(&models.User{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	_ = d.Create(&models.User{
+		Name:     "default",
+		UUID:     newUUID(),
+		Password: hex.EncodeToString(b),
+		IsActive: false,
+	}).Error
+}
+
+func newUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
 // GetSetting возвращает значение настройки; ("", nil) если ключа нет.
