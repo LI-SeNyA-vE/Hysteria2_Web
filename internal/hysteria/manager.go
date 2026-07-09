@@ -80,13 +80,14 @@ func (m *Manager) effectivePort() int {
 
 // Manager управляет жизненным циклом hysteria2 как дочернего процесса.
 type Manager struct {
-	dataDir   string
-	port      int
-	db        *db.DB
-	logBuf    *logbuf.Buffer
-	mu        sync.Mutex
-	srv       *supervisor // server-процесс
-	clientSrv *supervisor // client-процесс (каскад, только на node1)
+	dataDir        string
+	port           int
+	db             *db.DB
+	logBuf         *logbuf.Buffer
+	mu             sync.Mutex
+	srv            *supervisor   // server-процесс
+	clientSrv      *supervisor   // client-процесс (каскад, только на node1)
+	currentCascade *outboundCfg // сохраняется после ApplyNodeConfig, используется при Start/Reload
 }
 
 func New(dataDir string, port int, d *db.DB) *Manager {
@@ -305,6 +306,15 @@ func (m *Manager) ApplyNodeConfig(ctx context.Context, nc NodeConfig) error {
 			}
 		}
 	}
+
+	// Сохраняем каскад в менеджере — Start() и ReloadConfig() будут его использовать.
+	m.mu.Lock()
+	if nc.Cascade != nil {
+		m.currentCascade = &outboundCfg{Addr: "127.0.0.1:1080"}
+	} else {
+		m.currentCascade = nil
+	}
+	m.mu.Unlock()
 
 	// ── Hysteria2 сервер ─────────────────────────────────────────────────────
 	if nc.Run {

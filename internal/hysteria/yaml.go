@@ -71,7 +71,13 @@ func (m *Manager) buildServerYAMLFromConfig(users map[string]string, obfsPasswor
 
 // buildServerYAML загружает активных пользователей и настройки из БД,
 // генерирует server.yaml в dataDir. outbound != nil только для node1 (каскад).
+// Если outbound == nil, используется m.currentCascade (сохранённый после ApplyNodeConfig).
 func (m *Manager) buildServerYAML(outbound *outboundCfg) error {
+	if outbound == nil {
+		m.mu.Lock()
+		outbound = m.currentCascade
+		m.mu.Unlock()
+	}
 	// Загружаем активных пользователей
 	var users []models.User
 	_ = m.db.Where("is_active = ?", true).Find(&users).Error
