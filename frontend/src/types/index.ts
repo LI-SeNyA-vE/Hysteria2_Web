@@ -9,6 +9,7 @@ export interface Server {
   hy2Port: number
   hy2Version: string
   createdAt: string
+  lastSeenAt: string | null
 }
 
 export interface User {
@@ -69,6 +70,12 @@ export interface CreateUserRequest {
 export interface CreateSubscriptionRequest {
   userId: number
   name: string
+}
+
+export interface NodeConfig {
+  bandwidthUp: string
+  bandwidthDown: string
+  masqueradeUrl: string
 }
 
 export interface HysteriaConfig {

@@ -27,6 +27,7 @@ type HeartbeatRequest struct {
 	Running    bool                 `json:"running"`
 	CertSHA256 string               `json:"certSha256"`
 	Usage      map[string]UsageStat `json:"usage"`
+	Logs       []string             `json:"logs,omitempty"` // последние строки из logbuf hysteria2
 }
 
 // NodeServerConfig — параметры, которые main передаёт ноде для генерации server.yaml.
@@ -35,6 +36,8 @@ type NodeServerConfig struct {
 	MasqueradeURL string            `json:"masqueradeUrl"`
 	StatsSecret   string            `json:"statsSecret"`
 	Users         map[string]string `json:"users"` // имя → пароль
+	BandwidthUp   string            `json:"bandwidthUp,omitempty"`
+	BandwidthDown string            `json:"bandwidthDown,omitempty"`
 }
 
 // CascadeClientConfig — параметры для client.yaml на node1 (каскад на node2).

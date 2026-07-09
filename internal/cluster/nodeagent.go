@@ -81,6 +81,7 @@ func (a *NodeAgent) heartbeat(ctx context.Context) error {
 		Running:    a.mgr.IsRunning(),
 		CertSHA256: a.mgr.CertSHA256(),
 		Usage:      map[string]UsageStat{}, // трафик на ноде — TODO: pollOnce без DB
+		Logs:       a.mgr.LogBuf().Lines(),
 	}
 	desired, err := a.post(ctx, "/api/node/heartbeat", req)
 	if err != nil {
@@ -100,6 +101,8 @@ func (a *NodeAgent) applyIfChanged(ctx context.Context, desired DesiredNodeConfi
 		ObfsPassword:  desired.ServerConfig.ObfsPassword,
 		MasqueradeURL: desired.ServerConfig.MasqueradeURL,
 		StatsSecret:   desired.ServerConfig.StatsSecret,
+		BandwidthUp:   desired.ServerConfig.BandwidthUp,
+		BandwidthDown: desired.ServerConfig.BandwidthDown,
 		Run:           desired.Run,
 	}
 	if desired.CascadeClient != nil {

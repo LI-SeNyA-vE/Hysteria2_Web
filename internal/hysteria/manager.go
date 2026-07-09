@@ -35,6 +35,8 @@ type NodeConfig struct {
 	ObfsPassword  string
 	MasqueradeURL string
 	StatsSecret   string
+	BandwidthUp   string
+	BandwidthDown string
 	Run           bool
 	Cascade       *NodeCascadeClient // не nil только для node1
 }
@@ -310,7 +312,7 @@ func (m *Manager) ApplyNodeConfig(ctx context.Context, nc NodeConfig) error {
 		if nc.Cascade != nil {
 			ob = &outboundCfg{Addr: "127.0.0.1:1080"}
 		}
-		if err := m.buildServerYAMLFromConfig(nc.Users, nc.ObfsPassword, nc.MasqueradeURL, nc.StatsSecret, ob); err != nil {
+		if err := m.buildServerYAMLFromConfig(nc.Users, nc.ObfsPassword, nc.MasqueradeURL, nc.StatsSecret, nc.BandwidthUp, nc.BandwidthDown, ob); err != nil {
 			return fmt.Errorf("генерация server.yaml: %w", err)
 		}
 		m.mu.Lock()

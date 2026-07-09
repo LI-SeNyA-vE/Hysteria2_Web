@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Server, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
-import { getServers } from '@/api/servers'
+import { useState, useEffect, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw } from 'lucide-react'
+import { getServers, getServerLogs } from '@/api/servers'
 import { getSettings } from '@/api/settings'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { copyToClipboard } from '@/lib/utils'
 import type { Server as ServerType, ServerRole } from '@/types'
 
@@ -31,21 +33,39 @@ const CARD_BOX = {
   boxShadow: '0 0 0 1px rgba(255,255,255,0.07), 0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.25)',
 }
 
+// Считаем сервер онлайн если lastSeenAt не старше 30 секунд
+function isOnline(lastSeenAt: string | null): boolean {
+  if (!lastSeenAt) return false
+  return Date.now() - new Date(lastSeenAt).getTime() < 30_000
+}
+
 export function Servers() {
-  const { data: servers = [] } = useQuery({
+  const qc = useQueryClient()
+  const { data: servers = [], isFetching } = useQuery({
     queryKey: ['servers'],
     queryFn: getServers,
     placeholderData: [],
+    refetchInterval: 30_000,
   })
 
   const isEmpty = servers.length === 0
   const [connectOpen, setConnectOpen] = useState(isEmpty)
+  const [logsServer, setLogsServer] = useState<ServerType | null>(null)
 
   return (
     <div className="min-h-screen" style={{ padding: '40px 48px' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 className="text-[22px] font-semibold text-text" style={{ letterSpacing: '-0.02em' }}>Серверы</h1>
-        <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Узлы каскадной сети</p>
+      <div className="flex items-center justify-between" style={{ marginBottom: 28 }}>
+        <div>
+          <h1 className="text-[22px] font-semibold text-text" style={{ letterSpacing: '-0.02em' }}>Серверы</h1>
+          <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Узлы каскадной сети</p>
+        </div>
+        <Button
+          variant="outline" size="sm"
+          loading={isFetching}
+          onClick={() => qc.invalidateQueries({ queryKey: ['servers'] })}
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Обновить
+        </Button>
       </div>
 
       <ConnectNodeBlock
@@ -82,7 +102,17 @@ export function Servers() {
                     <InfoRow label="IP адрес" value={server.publicIp}       />
                     <InfoRow label="Порт"      value={`:${server.hy2Port}`}  />
                     <InfoRow label="Версия"    value={server.hy2Version}     />
-                    <InfoRow label="Статус"    value={<Badge dot variant="success">В сети</Badge>} />
+                    <InfoRow label="Статус"    value={
+                      isOnline(server.lastSeenAt)
+                        ? <Badge dot variant="success">В сети</Badge>
+                        : <Badge dot variant="danger">Оффлайн</Badge>
+                    } />
+                  </div>
+
+                  <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
+                    <Button variant="outline" size="sm" onClick={() => setLogsServer(server)}>
+                      <ScrollText className="w-3.5 h-3.5" /> Логи hysteria2
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -90,6 +120,8 @@ export function Servers() {
           </div>
         )}
       </div>
+
+      <ServerLogsDialog server={logsServer} onClose={() => setLogsServer(null)} />
     </div>
   )
 }
@@ -254,6 +286,68 @@ function CopyField({ value }: { value: string }) {
       </button>
     </div>
   )
+}
+
+// ── ServerLogsDialog ──────────────────────────────────────────────────────────
+
+function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onClose: () => void }) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const { data, dataUpdatedAt } = useQuery({
+    queryKey: ['server-logs', server?.id],
+    queryFn: () => getServerLogs(server!.id),
+    enabled: !!server,
+    refetchInterval: 5_000,
+  })
+
+  const lines = data?.lines ?? []
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [dataUpdatedAt])
+
+  return (
+    <Dialog
+      open={!!server}
+      onClose={onClose}
+      title={`Логи — ${server?.name ?? ''}`}
+      description={`hysteria2 • обновляется каждые 5 сек`}
+    >
+      <div
+        className="rounded-xl overflow-y-auto"
+        style={{
+          height: 420,
+          background: 'rgba(0,0,0,0.35)',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.07)',
+          padding: '12px 14px',
+        }}
+      >
+        {lines.length === 0 ? (
+          <p className="text-[12px] text-dim text-center" style={{ marginTop: 80 }}>
+            Логи ещё не получены — нода пришлёт их при следующем heartbeat (≤10 сек)
+          </p>
+        ) : (
+          lines.map((line, i) => (
+            <div
+              key={i}
+              className="text-[11px] leading-relaxed select-text"
+              style={{ fontFamily: 'monospace', color: logColor(line), wordBreak: 'break-all' }}
+            >
+              {line}
+            </div>
+          ))
+        )}
+        <div ref={bottomRef} />
+      </div>
+    </Dialog>
+  )
+}
+
+function logColor(line: string): string {
+  const l = line.toLowerCase()
+  if (l.includes('error') || l.includes('fatal') || l.includes('ERR')) return '#f87171'
+  if (l.includes('warn')) return '#fbbf24'
+  return 'rgba(255,255,255,0.55)'
 }
 
 // ── InfoRow ────────────────────────────────────────────────────────────────────

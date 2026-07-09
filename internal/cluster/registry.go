@@ -9,19 +9,24 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"hysteria2-web/internal/db"
 	"hysteria2-web/internal/models"
 )
 
+const maxNodeLogLines = 500
+
 // Registry — серверная сторона протокола (работает на main).
 type Registry struct {
-	db *db.DB
+	db       *db.DB
+	logsMu   sync.RWMutex
+	nodeLogs map[string][]string // имя ноды → последние строки логов
 }
 
 func NewRegistry(d *db.DB) *Registry {
-	return &Registry{db: d}
+	return &Registry{db: d, nodeLogs: make(map[string][]string)}
 }
 
 // Register создаёт/обновляет запись Server и возвращает DesiredNodeConfig.
@@ -75,6 +80,17 @@ func (r *Registry) Heartbeat(req HeartbeatRequest) (DesiredNodeConfig, error) {
 	}
 	r.db.Model(&s).Updates(updates)
 
+	// Сохраняем логи ноды в памяти (обрезаем до maxNodeLogLines)
+	if len(req.Logs) > 0 {
+		r.logsMu.Lock()
+		lines := req.Logs
+		if len(lines) > maxNodeLogLines {
+			lines = lines[len(lines)-maxNodeLogLines:]
+		}
+		r.nodeLogs[req.Name] = lines
+		r.logsMu.Unlock()
+	}
+
 	// Аккумулируем трафик пользователей
 	for name, usage := range req.Usage {
 		delta := usage.TX + usage.RX
@@ -96,8 +112,17 @@ func (r *Registry) Heartbeat(req HeartbeatRequest) (DesiredNodeConfig, error) {
 // serverName — уникальное имя ноды (hostname), нужно для поиска её CascadeTarget.
 func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig {
 	obfs, _ := r.db.GetSetting(models.SettingObfsPassword)
-	masq, _ := r.db.GetSettingOrDefault(models.SettingMasqueradeURL, "https://news.ycombinator.com/")
+	globalMasq, _ := r.db.GetSettingOrDefault(models.SettingMasqueradeURL, "https://news.ycombinator.com/")
+	globalBwUp, _ := r.db.GetSetting(models.SettingBandwidthUp)
+	globalBwDown, _ := r.db.GetSetting(models.SettingBandwidthDown)
 	statsSecret, _ := r.db.GetSetting(models.SettingStatsSecret)
+
+	// Ищем запись сервера для per-node override'ов
+	var srvRecord models.Server
+	_ = r.db.Where("name = ?", serverName).First(&srvRecord).Error
+	masq := firstNonEmpty(srvRecord.MasqueradeURL, globalMasq)
+	bwUp := firstNonEmpty(srvRecord.BandwidthUp, globalBwUp)
+	bwDown := firstNonEmpty(srvRecord.BandwidthDown, globalBwDown)
 
 	// Каскадные учётные данные — генерируются один раз и хранятся в Settings.
 	cascadeUser, cascadePass := r.ensureCascadeCredentials()
@@ -122,10 +147,7 @@ func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig
 		for _, u := range activeUsers {
 			users[u.Name] = u.Password
 		}
-		// Ищем CascadeTarget из записи этой ноды в БД
-		var node1Server models.Server
-		r.db.Where("name = ?", serverName).First(&node1Server)
-		cascadeClient = r.buildCascadeClientForNode1(node1Server.CascadeTarget, cascadeUser, cascadePass, obfs)
+		cascadeClient = r.buildCascadeClientForNode1(srvRecord.CascadeTarget, cascadeUser, cascadePass, obfs)
 		// Не запускаем hysteria без юзеров — он отказывается стартовать с пустым userpass
 		if len(users) == 0 {
 			runNode = false
@@ -147,6 +169,8 @@ func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig
 		MasqueradeURL: masq,
 		StatsSecret:   statsSecret,
 		Users:         users,
+		BandwidthUp:   bwUp,
+		BandwidthDown: bwDown,
 	}
 
 	desired := DesiredNodeConfig{
@@ -195,6 +219,26 @@ func (r *Registry) ensureCascadeCredentials() (user, pass string) {
 	_ = r.db.SetSetting(models.SettingCascadeUser, user)
 	_ = r.db.SetSetting(models.SettingCascadePassword, pass)
 	return
+}
+
+// GetNodeLogs возвращает последние логи ноды по её имени.
+func (r *Registry) GetNodeLogs(name string) []string {
+	r.logsMu.RLock()
+	defer r.logsMu.RUnlock()
+	src := r.nodeLogs[name]
+	if len(src) == 0 {
+		return []string{}
+	}
+	out := make([]string, len(src))
+	copy(out, src)
+	return out
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func randomHex(n int) string {

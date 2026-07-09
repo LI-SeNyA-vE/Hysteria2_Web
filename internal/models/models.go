@@ -23,7 +23,11 @@ type Server struct {
 	CertSHA256 string `gorm:"column:cert_sha256"`
 	// CascadeTarget — имя (Name) ноды node2, через которую этот node1 выходит в интернет.
 	// Пусто = использовать первую доступную node2.
-	CascadeTarget string     `gorm:"column:cascade_target"`
+	CascadeTarget string `gorm:"column:cascade_target"`
+	// Per-node overrides: пусто = используется глобальное значение из таблицы Setting.
+	BandwidthUp   string `gorm:"column:bandwidth_up"`
+	BandwidthDown string `gorm:"column:bandwidth_down"`
+	MasqueradeURL string `gorm:"column:masquerade_url"`
 	LastSeenAt    *time.Time `gorm:"column:last_seen_at"`
 	CreatedAt     time.Time
 }

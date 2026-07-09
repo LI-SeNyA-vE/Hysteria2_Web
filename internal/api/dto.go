@@ -11,17 +11,23 @@ const GiB = 1 << 30
 
 // serverDTO зеркалит frontend/src/types Server (camelCase JSON).
 type serverDTO struct {
-	ID         uint   `json:"id"`
-	Role       string `json:"role"`
-	Name       string `json:"name"`
-	PublicIP   string `json:"publicIp"`
-	PanelURL   string `json:"panelUrl"`
-	Hy2Port    int    `json:"hy2Port"`
-	Hy2Version string `json:"hy2Version"`
-	CreatedAt  string `json:"createdAt"`
+	ID          uint    `json:"id"`
+	Role        string  `json:"role"`
+	Name        string  `json:"name"`
+	PublicIP    string  `json:"publicIp"`
+	PanelURL    string  `json:"panelUrl"`
+	Hy2Port     int     `json:"hy2Port"`
+	Hy2Version  string  `json:"hy2Version"`
+	CreatedAt   string  `json:"createdAt"`
+	LastSeenAt  *string `json:"lastSeenAt"`
 }
 
 func toServerDTO(s models.Server) serverDTO {
+	var lastSeen *string
+	if s.LastSeenAt != nil {
+		t := s.LastSeenAt.Format(time.RFC3339)
+		lastSeen = &t
+	}
 	return serverDTO{
 		ID:         s.ID,
 		Role:       s.Role,
@@ -31,6 +37,7 @@ func toServerDTO(s models.Server) serverDTO {
 		Hy2Port:    s.Hy2Port,
 		Hy2Version: s.Hy2Version,
 		CreatedAt:  s.CreatedAt.Format(time.RFC3339),
+		LastSeenAt: lastSeen,
 	}
 }
 

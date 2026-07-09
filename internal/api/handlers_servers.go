@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -24,6 +25,78 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 		dtos[i] = toServerDTO(srv)
 	}
 	writeJSON(w, http.StatusOK, dtos)
+}
+
+func (s *Server) handleGetServerLogs(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный id")
+		return
+	}
+	var srv models.Server
+	if err := s.db.First(&srv, id).Error; err != nil {
+		writeErr(w, http.StatusNotFound, "сервер не найден")
+		return
+	}
+
+	var lines []string
+	if srv.Role == models.RoleMain || srv.Role == models.RoleMainNode1 {
+		if s.manager != nil {
+			lines = s.manager.LogBuf().Lines()
+		}
+	} else {
+		if s.registry != nil {
+			lines = s.registry.GetNodeLogs(srv.Name)
+		}
+	}
+	if lines == nil {
+		lines = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+}
+
+func (s *Server) handleGetNodeConfig(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный id")
+		return
+	}
+	var srv models.Server
+	if err := s.db.First(&srv, id).Error; err != nil {
+		writeErr(w, http.StatusNotFound, "сервер не найден")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bandwidthUp":   srv.BandwidthUp,
+		"bandwidthDown": srv.BandwidthDown,
+		"masqueradeUrl": srv.MasqueradeURL,
+	})
+}
+
+func (s *Server) handleUpdateNodeConfig(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный id")
+		return
+	}
+	var req struct {
+		BandwidthUp   string `json:"bandwidthUp"`
+		BandwidthDown string `json:"bandwidthDown"`
+		MasqueradeURL string `json:"masqueradeUrl"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный JSON")
+		return
+	}
+	if err := s.db.Model(&models.Server{}).Where("id = ?", id).Updates(map[string]any{
+		"bandwidth_up":   req.BandwidthUp,
+		"bandwidth_down": req.BandwidthDown,
+		"masquerade_url": req.MasqueradeURL,
+	}).Error; err != nil {
+		writeErr(w, http.StatusInternalServerError, "ошибка сохранения")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
