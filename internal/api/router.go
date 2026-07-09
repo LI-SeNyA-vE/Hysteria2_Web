@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 
 		r.Get("/api/update/check", s.handleCheckUpdate)
 		r.Post("/api/update/apply", s.handleApplyUpdate)
+		r.Post("/api/update/push-nodes", s.handlePushNodeUpdate)
 
 		r.Get("/api/logs", s.handleGetLogs)
 	})

@@ -12,6 +12,7 @@ import (
 
 	"hysteria2-web/internal/config"
 	"hysteria2-web/internal/hysteria"
+	"hysteria2-web/internal/version"
 )
 
 // NodeAgent работает на ноде: регистрируется на main и держит heartbeat-цикл.
@@ -77,11 +78,12 @@ func (a *NodeAgent) register(ctx context.Context) error {
 
 func (a *NodeAgent) heartbeat(ctx context.Context) error {
 	req := HeartbeatRequest{
-		Name:       nodeName(a.cfg),
-		Running:    a.mgr.IsRunning(),
-		CertSHA256: a.mgr.CertSHA256(),
-		Usage:      map[string]UsageStat{}, // трафик на ноде — TODO: pollOnce без DB
-		Logs:       a.mgr.LogBuf().Lines(),
+		Name:         nodeName(a.cfg),
+		Running:      a.mgr.IsRunning(),
+		CertSHA256:   a.mgr.CertSHA256(),
+		Usage:        map[string]UsageStat{}, // трафик на ноде — TODO: pollOnce без DB
+		Logs:         a.mgr.LogBuf().Lines(),
+		PanelVersion: version.Version,
 	}
 	desired, err := a.post(ctx, "/api/node/heartbeat", req)
 	if err != nil {
@@ -91,6 +93,16 @@ func (a *NodeAgent) heartbeat(ctx context.Context) error {
 }
 
 func (a *NodeAgent) applyIfChanged(ctx context.Context, desired DesiredNodeConfig) error {
+	// Обновление панели если main запросил другую версию
+	if desired.DesiredPanelVersion != "" && desired.DesiredPanelVersion != version.Version {
+		log.Printf("nodeagent: запрошено обновление до %s (текущая %s)", desired.DesiredPanelVersion, version.Version)
+		if err := selfUpdate(ctx, desired.DesiredPanelVersion); err != nil {
+			log.Printf("nodeagent: ошибка обновления: %v", err)
+		}
+		// selfUpdate завершает процесс — дальше не выполняется
+		return nil
+	}
+
 	if desired.Version == a.lastVersion {
 		return nil // конфиг не изменился
 	}

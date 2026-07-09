@@ -13,14 +13,15 @@ const (
 
 // Server — узел сети (сама панель либо зарегистрировавшаяся нода).
 type Server struct {
-	ID         uint   `gorm:"primaryKey"`
-	Role       string `gorm:"index"`
-	Name       string `gorm:"uniqueIndex"`
-	PublicIP   string `gorm:"column:public_ip"`
-	PanelURL   string `gorm:"column:panel_url"`
-	Hy2Port    int    `gorm:"column:hy2_port"`
-	Hy2Version string `gorm:"column:hy2_version"`
-	CertSHA256 string `gorm:"column:cert_sha256"`
+	ID           uint   `gorm:"primaryKey"`
+	Role         string `gorm:"index"`
+	Name         string `gorm:"uniqueIndex"`
+	PublicIP     string `gorm:"column:public_ip"`
+	PanelURL     string `gorm:"column:panel_url"`
+	Hy2Port      int    `gorm:"column:hy2_port"`
+	Hy2Version   string `gorm:"column:hy2_version"`
+	PanelVersion string `gorm:"column:panel_version"` // текущая версия панели на ноде
+	CertSHA256   string `gorm:"column:cert_sha256"`
 	// CascadeTarget — имя (Name) ноды node2, через которую этот node1 выходит в интернет.
 	// Пусто = использовать первую доступную node2.
 	CascadeTarget string `gorm:"column:cascade_target"`
@@ -75,6 +76,7 @@ const (
 	SettingStatsSecret       = "stats_secret"   // секрет Traffic Stats API hysteria2
 	SettingBandwidthUp       = "bandwidth_up"   // лимит исходящего, напр. "100 mbps"
 	SettingBandwidthDown     = "bandwidth_down" // лимит входящего, напр. "1 gbps"
-	SettingHy2Port           = "hy2_port"       // UDP-порт hysteria2 (override panel.yaml)
-	SettingSNI               = "sni"            // SNI для клиентских URI, напр. "yandex.ru"
+	SettingHy2Port              = "hy2_port"              // UDP-порт hysteria2 (override panel.yaml)
+	SettingSNI                  = "sni"                   // SNI для клиентских URI, напр. "yandex.ru"
+	SettingDesiredNodeVersion   = "desired_node_version"  // версия панели, которую должны запускать ноды
 )

@@ -108,6 +108,24 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+// handlePushNodeUpdate устанавливает желаемую версию для всех нод.
+// Ноды получат её в следующем heartbeat и обновятся сами.
+func (s *Server) handlePushNodeUpdate(w http.ResponseWriter, r *http.Request) {
+	rel, err := fetchLatestRelease(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "не удалось получить версию: "+err.Error())
+		return
+	}
+	if err := s.db.SetSetting("desired_node_version", rel.TagName); err != nil {
+		writeErr(w, http.StatusInternalServerError, "ошибка сохранения: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"version": rel.TagName,
+		"message": "ноды обновятся в течение 10 секунд",
+	})
+}
+
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

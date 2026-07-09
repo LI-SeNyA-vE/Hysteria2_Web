@@ -23,11 +23,12 @@ type UsageStat struct {
 
 // HeartbeatRequest — нода шлёт каждые 10 секунд.
 type HeartbeatRequest struct {
-	Name       string               `json:"name"`
-	Running    bool                 `json:"running"`
-	CertSHA256 string               `json:"certSha256"`
-	Usage      map[string]UsageStat `json:"usage"`
-	Logs       []string             `json:"logs,omitempty"` // последние строки из logbuf hysteria2
+	Name         string               `json:"name"`
+	Running      bool                 `json:"running"`
+	CertSHA256   string               `json:"certSha256"`
+	Usage        map[string]UsageStat `json:"usage"`
+	Logs         []string             `json:"logs,omitempty"`         // последние строки из logbuf hysteria2
+	PanelVersion string               `json:"panelVersion,omitempty"` // текущая версия панели на ноде
 }
 
 // NodeServerConfig — параметры, которые main передаёт ноде для генерации server.yaml.
@@ -52,8 +53,9 @@ type CascadeClientConfig struct {
 // DesiredNodeConfig — желаемое состояние ноды; main отвечает им на register/heartbeat.
 // Version меняется только при изменении контента — нода применяет только при version != lastApplied.
 type DesiredNodeConfig struct {
-	Version       int64                `json:"version"`
-	ServerConfig  NodeServerConfig     `json:"serverConfig"`
-	CascadeClient *CascadeClientConfig `json:"cascadeClient,omitempty"`
-	Run           bool                 `json:"run"`
+	Version              int64                `json:"version"`
+	ServerConfig         NodeServerConfig     `json:"serverConfig"`
+	CascadeClient        *CascadeClientConfig `json:"cascadeClient,omitempty"`
+	Run                  bool                 `json:"run"`
+	DesiredPanelVersion  string               `json:"desiredPanelVersion,omitempty"` // если задана — нода должна обновиться
 }

@@ -11,3 +11,5 @@ export const getNodeConfig = (id: number) =>
   apiFetch<NodeConfig>(`/servers/${id}/config`)
 export const saveNodeConfig = (id: number, data: NodeConfig) =>
   apiFetch<void>(`/servers/${id}/config`, { method: 'PUT', body: JSON.stringify(data) })
+export const pushNodeUpdate = () =>
+  apiFetch<{ version: string; message: string }>('/update/push-nodes', { method: 'POST' })

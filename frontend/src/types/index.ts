@@ -8,6 +8,7 @@ export interface Server {
   panelUrl: string
   hy2Port: number
   hy2Version: string
+  panelVersion: string
   createdAt: string
   lastSeenAt: string | null
 }

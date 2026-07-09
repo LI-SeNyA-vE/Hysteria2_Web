@@ -78,6 +78,9 @@ func (r *Registry) Heartbeat(req HeartbeatRequest) (DesiredNodeConfig, error) {
 	if req.CertSHA256 != "" && req.CertSHA256 != s.CertSHA256 {
 		updates["cert_sha256"] = req.CertSHA256
 	}
+	if req.PanelVersion != "" && req.PanelVersion != s.PanelVersion {
+		updates["panel_version"] = req.PanelVersion
+	}
 	r.db.Model(&s).Updates(updates)
 
 	// Сохраняем логи ноды в памяти (обрезаем до maxNodeLogLines)
@@ -173,10 +176,13 @@ func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig
 		BandwidthDown: bwDown,
 	}
 
+	desiredVer, _ := r.db.GetSetting(models.SettingDesiredNodeVersion)
+
 	desired := DesiredNodeConfig{
-		ServerConfig:  serverCfg,
-		CascadeClient: cascadeClient,
-		Run:           runNode,
+		ServerConfig:        serverCfg,
+		CascadeClient:       cascadeClient,
+		Run:                 runNode,
+		DesiredPanelVersion: desiredVer,
 	}
 	desired.Version = configVersion(serverCfg, cascadeClient)
 	return desired

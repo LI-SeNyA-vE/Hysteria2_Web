@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw } from 'lucide-react'
-import { getServers, getServerLogs } from '@/api/servers'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw, Upload } from 'lucide-react'
+import { getServers, getServerLogs, pushNodeUpdate } from '@/api/servers'
 import { getSettings } from '@/api/settings'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +52,18 @@ export function Servers() {
   const isEmpty = servers.length === 0
   const [connectOpen, setConnectOpen] = useState(isEmpty)
   const [logsServer, setLogsServer] = useState<ServerType | null>(null)
+  const [updateMsg, setUpdateMsg] = useState('')
+
+  const pushMut = useMutation({
+    mutationFn: pushNodeUpdate,
+    onSuccess: (res) => {
+      setUpdateMsg(`Ноды получат ${res.version} на следующем heartbeat (~10 сек)`)
+      setTimeout(() => setUpdateMsg(''), 6000)
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['servers'] }), 15_000)
+    },
+  })
+
+  const nodes = servers.filter(s => s.role !== 'main' && s.role !== 'main_node1')
 
   return (
     <div className="min-h-screen" style={{ padding: '40px 48px' }}>
@@ -60,13 +72,27 @@ export function Servers() {
           <h1 className="text-[22px] font-semibold text-text" style={{ letterSpacing: '-0.02em' }}>Серверы</h1>
           <p className="text-[13px] text-dim" style={{ marginTop: 6 }}>Узлы каскадной сети</p>
         </div>
-        <Button
-          variant="outline" size="sm"
-          loading={isFetching}
-          onClick={() => qc.invalidateQueries({ queryKey: ['servers'] })}
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Обновить
-        </Button>
+        <div className="flex items-center gap-2">
+          {nodes.length > 0 && (
+            <div className="flex items-center gap-2">
+              {updateMsg && <span className="text-[12px] text-success">{updateMsg}</span>}
+              <Button
+                variant="outline" size="sm"
+                loading={pushMut.isPending}
+                onClick={() => pushMut.mutate()}
+              >
+                <Upload className="w-3.5 h-3.5" /> Обновить ноды
+              </Button>
+            </div>
+          )}
+          <Button
+            variant="outline" size="sm"
+            loading={isFetching}
+            onClick={() => qc.invalidateQueries({ queryKey: ['servers'] })}
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Обновить
+          </Button>
+        </div>
       </div>
 
       <ConnectNodeBlock
@@ -100,10 +126,13 @@ export function Servers() {
                   </div>
 
                   <div className="space-y-3">
-                    <InfoRow label="IP адрес" value={server.publicIp}       />
-                    <InfoRow label="Порт"      value={`:${server.hy2Port}`}  />
-                    <InfoRow label="Версия"    value={server.hy2Version}     />
-                    <InfoRow label="Статус"    value={
+                    <InfoRow label="IP адрес"   value={server.publicIp}      />
+                    <InfoRow label="Порт"        value={`:${server.hy2Port}`} />
+                    <InfoRow label="Hysteria2"   value={server.hy2Version}    />
+                    {server.panelVersion && (
+                      <InfoRow label="Панель" value={server.panelVersion} />
+                    )}
+                    <InfoRow label="Статус"      value={
                       isOnline(server)
                         ? <Badge dot variant="success">В сети</Badge>
                         : <Badge dot variant="danger">Оффлайн</Badge>
