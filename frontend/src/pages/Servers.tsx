@@ -33,10 +33,11 @@ const CARD_BOX = {
   boxShadow: '0 0 0 1px rgba(255,255,255,0.07), 0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.25)',
 }
 
-// Считаем сервер онлайн если lastSeenAt не старше 30 секунд
-function isOnline(lastSeenAt: string | null): boolean {
-  if (!lastSeenAt) return false
-  return Date.now() - new Date(lastSeenAt).getTime() < 30_000
+// Main-нода онлайн всегда (нет heartbeat-loop на себя), ноды — по lastSeenAt
+function isOnline(server: ServerType): boolean {
+  if (server.role === 'main' || server.role === 'main_node1') return true
+  if (!server.lastSeenAt) return false
+  return Date.now() - new Date(server.lastSeenAt).getTime() < 30_000
 }
 
 export function Servers() {
@@ -103,7 +104,7 @@ export function Servers() {
                     <InfoRow label="Порт"      value={`:${server.hy2Port}`}  />
                     <InfoRow label="Версия"    value={server.hy2Version}     />
                     <InfoRow label="Статус"    value={
-                      isOnline(server.lastSeenAt)
+                      isOnline(server)
                         ? <Badge dot variant="success">В сети</Badge>
                         : <Badge dot variant="danger">Оффлайн</Badge>
                     } />

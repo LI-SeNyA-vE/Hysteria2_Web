@@ -178,7 +178,7 @@ func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig
 		CascadeClient: cascadeClient,
 		Run:           runNode,
 	}
-	desired.Version = configVersion(serverCfg)
+	desired.Version = configVersion(serverCfg, cascadeClient)
 	return desired
 }
 
@@ -248,7 +248,7 @@ func randomHex(n int) string {
 }
 
 // configVersion вычисляет детерминированный хэш конфига — меняется только при изменении контента.
-func configVersion(cfg NodeServerConfig) int64 {
+func configVersion(cfg NodeServerConfig, cascade *CascadeClientConfig) int64 {
 	var sb strings.Builder
 	keys := make([]string, 0, len(cfg.Users))
 	for k := range cfg.Users {
@@ -259,6 +259,9 @@ func configVersion(cfg NodeServerConfig) int64 {
 		sb.WriteString(k + "=" + cfg.Users[k] + ";")
 	}
 	sb.WriteString(cfg.ObfsPassword + "|" + cfg.MasqueradeURL + "|" + cfg.StatsSecret)
+	if cascade != nil {
+		sb.WriteString("|cascade:" + cascade.ServerAddr + ":" + cascade.UserName)
+	}
 	h := sha256.Sum256([]byte(sb.String()))
 	return int64(binary.LittleEndian.Uint64(h[:8]))
 }
