@@ -5,6 +5,7 @@ import { getServers } from '@/api/servers'
 import { getSettings } from '@/api/settings'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { copyToClipboard } from '@/lib/utils'
 import type { Server as ServerType, ServerRole } from '@/types'
 
 const ROLE_RU: Record<ServerRole, string> = {
@@ -223,7 +224,7 @@ function CopyField({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
 
   const copy = () => {
-    navigator.clipboard.writeText(value).then(() => {
+    copyToClipboard(value).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     })
@@ -231,17 +232,18 @@ function CopyField({ value }: { value: string }) {
 
   return (
     <div
-      className="flex items-start gap-3 rounded-xl px-4 py-3"
+      className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer"
       style={{ background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08)' }}
+      onClick={copy}
     >
       <span
-        className="flex-1 text-[12px] text-sub break-all"
+        className="flex-1 text-[12px] text-sub break-all select-none"
         style={{ fontFamily: 'monospace', lineHeight: '1.7' }}
       >
         {value}
       </span>
       <button
-        onClick={copy}
+        onClick={e => { e.stopPropagation(); copy() }}
         className="flex-shrink-0 mt-0.5 text-dim hover:text-sub transition-colors"
         title="Копировать"
       >

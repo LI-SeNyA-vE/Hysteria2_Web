@@ -24,6 +24,22 @@ export function formatExpiry(dateStr: string | null): { label: string; expired: 
   return { label: `${months}mo`, expired: false }
 }
 
-export function copyToClipboard(text: string) {
-  return navigator.clipboard.writeText(text)
+export function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+  }
+  // fallback for HTTP (non-secure context)
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('textarea')
+    el.value = text
+    el.style.position = 'fixed'
+    el.style.left = '-9999px'
+    el.style.top = '-9999px'
+    document.body.appendChild(el)
+    el.focus()
+    el.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(el)
+    ok ? resolve() : reject(new Error('execCommand failed'))
+  })
 }
