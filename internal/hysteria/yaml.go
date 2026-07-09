@@ -194,13 +194,13 @@ func buildCfg(port int, certPath, keyPath, obfs, masqURL, statsSecret, bwUp, bwD
 	}
 
 	if out != nil {
-		// Когда задан только один outbound, hysteria2 использует его как дефолтный
-		// для всего трафика без ACL-правил.
 		cfg.Outbounds = []outboundYAML{{
 			Name:   "cascade",
 			Type:   "socks5",
 			Socks5: &socks5YAML{Addr: out.Addr},
 		}}
+		// без ACL hysteria2 игнорирует кастомные outbound и идёт direct
+		cfg.ACL = &aclYAML{Inline: []string{"cascade(all)"}}
 	}
 
 	return cfg
