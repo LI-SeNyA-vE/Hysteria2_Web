@@ -89,6 +89,52 @@ func main() {
 		go agent.Run(ctx)
 	}
 
+	// Для main_node1: self-apply каскадного конфига (NodeAgent не запускается т.к. нет remote main).
+	if cfg.Role == models.RoleMainNode1 && mgr != nil && reg != nil {
+		go func() {
+			var lastVer int64
+			apply := func() {
+				desired := reg.BuildDesiredConfig(models.RoleMainNode1, "main")
+				if desired.Version == lastVer {
+					return
+				}
+				nc := hysteria.NodeConfig{
+					Users:         desired.ServerConfig.Users,
+					ObfsPassword:  desired.ServerConfig.ObfsPassword,
+					MasqueradeURL: desired.ServerConfig.MasqueradeURL,
+					StatsSecret:   desired.ServerConfig.StatsSecret,
+					BandwidthUp:   desired.ServerConfig.BandwidthUp,
+					BandwidthDown: desired.ServerConfig.BandwidthDown,
+					Run:           desired.Run,
+				}
+				if desired.CascadeClient != nil {
+					nc.Cascade = &hysteria.NodeCascadeClient{
+						ServerAddr:   desired.CascadeClient.ServerAddr,
+						UserName:     desired.CascadeClient.UserName,
+						Password:     desired.CascadeClient.Password,
+						ObfsPassword: desired.CascadeClient.ObfsPassword,
+						PinSHA256:    desired.CascadeClient.PinSHA256,
+					}
+				}
+				if err := mgr.ApplyNodeConfig(ctx, nc); err != nil {
+					log.Printf("main_node1: применение каскадного конфига: %v", err)
+					return
+				}
+				lastVer = desired.Version
+			}
+			t := time.NewTicker(15 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					apply()
+				}
+			}
+		}()
+	}
+
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr,
 		Handler:      api.NewServer(a, d, cfg.Dev, mgr, reg, panelBuf).Handler(),

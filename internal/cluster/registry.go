@@ -140,8 +140,8 @@ func (r *Registry) buildDesiredConfig(role, serverName string) DesiredNodeConfig
 			runNode = false
 		}
 
-	case models.RoleNode1:
-		// node1 принимает всех активных пользователей
+	case models.RoleNode1, models.RoleMainNode1:
+		// node1 / main_node1 принимают всех активных пользователей + каскадный клиент
 		var activeUsers []models.User
 		r.db.Where("is_active = ?", true).Find(&activeUsers)
 		for _, u := range activeUsers {
@@ -219,6 +219,11 @@ func (r *Registry) ensureCascadeCredentials() (user, pass string) {
 	_ = r.db.SetSetting(models.SettingCascadeUser, user)
 	_ = r.db.SetSetting(models.SettingCascadePassword, pass)
 	return
+}
+
+// BuildDesiredConfig публичная обёртка над buildDesiredConfig — используется main_node1.
+func (r *Registry) BuildDesiredConfig(role, serverName string) DesiredNodeConfig {
+	return r.buildDesiredConfig(role, serverName)
 }
 
 // GetNodeLogs возвращает последние логи ноды по её имени.
