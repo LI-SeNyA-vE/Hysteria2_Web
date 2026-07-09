@@ -9,9 +9,42 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build binaries
+  frontend:
+    name: Build frontend
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Vite output
+        uses: actions/cache@v4
+        id: vite-cache
+        with:
+          path: frontend/dist
+          key: vite-${{ hashFiles('frontend/src/**', 'frontend/index.html', 'frontend/vite.config.*', 'frontend/package-lock.json') }}
+
+      - name: Set up Node.js
+        if: steps.vite-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        if: steps.vite-cache.outputs.cache-hit != 'true'
+        run: cd frontend && npm ci && npm run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  build:
+    name: Build binary
+    runs-on: ubuntu-latest
+    needs: frontend
     strategy:
       matrix:
         include:
@@ -23,18 +56,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
         with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+          name: frontend-dist
+          path: frontend/dist
 
       - name: Set up Go
         uses: actions/setup-go@v5

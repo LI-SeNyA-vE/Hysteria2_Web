@@ -58,7 +58,7 @@ type socks5ListenYAML struct {
 
 // buildServerYAMLFromConfig генерирует server.yaml из переданных параметров (без DB).
 func (m *Manager) buildServerYAMLFromConfig(users map[string]string, obfsPassword, masqURL, statsSecret, bwUp, bwDown string, outbound *outboundCfg) error {
-	cfg := buildCfg(m.port,
+	cfg := buildCfg(m.effectivePort(),
 		filepath.Join(m.dataDir, "cert.pem"),
 		filepath.Join(m.dataDir, "key.pem"),
 		obfsPassword, masqURL, statsSecret, bwUp, bwDown, users, outbound)
