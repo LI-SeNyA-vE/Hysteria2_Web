@@ -14,6 +14,7 @@ const TABS: { id: Source; label: string }[] = [
 export function Logs() {
   const [source, setSource] = useState<Source>('panel')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const { data, isFetching } = useQuery({
     queryKey: ['logs', source],
@@ -24,10 +25,10 @@ export function Logs() {
 
   const lines = data?.lines ?? []
 
-  // Авто-скролл вниз при появлении новых строк
+  // Скролл вниз только при смене источника (явное переключение вкладки)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines.length])
+    bottomRef.current?.scrollIntoView()
+  }, [source])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ padding: '40px 48px' }}>

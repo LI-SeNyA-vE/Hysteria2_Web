@@ -441,16 +441,24 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
   const isMain = server?.role === 'main' || server?.role === 'main_node1'
   const [source, setSource] = useState<LogSource>('hysteria')
 
-  useEffect(() => { setSource('hysteria') }, [server?.id])
+  useEffect(() => {
+    setSource('hysteria')
+    // Скролл вниз только при открытии диалога или смене вкладки
+    setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
+  }, [server?.id])
 
-  const { data: hy2Data, dataUpdatedAt: hy2At } = useQuery({
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView()
+  }, [source])
+
+  const { data: hy2Data } = useQuery({
     queryKey: ['server-logs', server?.id],
     queryFn: () => getServerLogs(server!.id),
     enabled: !!server && source === 'hysteria',
     refetchInterval: 5_000,
   })
 
-  const { data: panelData, dataUpdatedAt: panelAt } = useQuery({
+  const { data: panelData } = useQuery({
     queryKey: ['panel-logs-main'],
     queryFn: getPanelLogs,
     enabled: !!server && isMain && source === 'panel',
@@ -458,11 +466,6 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
   })
 
   const lines = source === 'hysteria' ? (hy2Data?.lines ?? []) : (panelData?.lines ?? [])
-  const updatedAt = source === 'hysteria' ? hy2At : panelAt
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [updatedAt])
 
   const tabs: { id: LogSource; label: string }[] = [
     { id: 'hysteria', label: 'Hysteria2' },
