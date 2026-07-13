@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw, Upload, Pencil } from 'lucide-react'
+import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw, Upload, Pencil, Terminal } from 'lucide-react'
 import { getServers, getServerLogs, pushNodeUpdate, updateServerName } from '@/api/servers'
+import { getPanelLogs } from '@/api/logs'
 import { getSettings } from '@/api/settings'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -432,54 +433,114 @@ function CopyField({ value }: { value: string }) {
 
 // ── ServerLogsDialog ──────────────────────────────────────────────────────────
 
+type LogSource = 'panel' | 'hysteria'
+
 function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onClose: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const isMain = server?.role === 'main' || server?.role === 'main_node1'
+  const [source, setSource] = useState<LogSource>('hysteria')
 
-  const { data, dataUpdatedAt } = useQuery({
+  useEffect(() => { setSource('hysteria') }, [server?.id])
+
+  const { data: hy2Data, dataUpdatedAt: hy2At } = useQuery({
     queryKey: ['server-logs', server?.id],
     queryFn: () => getServerLogs(server!.id),
-    enabled: !!server,
+    enabled: !!server && source === 'hysteria',
     refetchInterval: 5_000,
   })
 
-  const lines = data?.lines ?? []
+  const { data: panelData, dataUpdatedAt: panelAt } = useQuery({
+    queryKey: ['panel-logs-main'],
+    queryFn: getPanelLogs,
+    enabled: !!server && isMain && source === 'panel',
+    refetchInterval: 5_000,
+  })
+
+  const lines = source === 'hysteria' ? (hy2Data?.lines ?? []) : (panelData?.lines ?? [])
+  const updatedAt = source === 'hysteria' ? hy2At : panelAt
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [dataUpdatedAt])
+  }, [updatedAt])
+
+  const tabs: { id: LogSource; label: string }[] = [
+    { id: 'hysteria', label: 'Hysteria2' },
+    ...(isMain ? [{ id: 'panel' as LogSource, label: 'Панель' }] : []),
+  ]
 
   return (
     <Dialog
       open={!!server}
       onClose={onClose}
-      title={`Логи — ${server?.name ?? ''}`}
-      description={`hysteria2 • обновляется каждые 5 сек`}
+      title={`Логи — ${server?.displayName || server?.name ?? ''}`}
+      description="обновляется каждые 5 сек"
     >
+      {/* Табы */}
+      {isMain && (
+        <div className="flex gap-2" style={{ marginBottom: 12 }}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setSource(tab.id)}
+              className="px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+              style={source === tab.id ? {
+                background: 'rgba(124,111,247,0.15)',
+                color: '#a5b4fc',
+                boxShadow: '0 0 0 1px rgba(124,111,247,0.3)',
+              } : {
+                background: 'rgba(255,255,255,0.04)',
+                color: 'var(--color-dim, #64748b)',
+                boxShadow: '0 0 0 1px rgba(255,255,255,0.07)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <span className="text-[12px] text-dim self-center ml-auto">{lines.length} строк</span>
+        </div>
+      )}
+
+      {/* Терминал */}
       <div
-        className="rounded-xl overflow-y-auto"
+        className="rounded-2xl overflow-hidden flex flex-col"
         style={{
-          height: 420,
-          background: 'rgba(0,0,0,0.35)',
+          background: '#0d0d10',
           boxShadow: '0 0 0 1px rgba(255,255,255,0.07)',
-          padding: '12px 14px',
+          minHeight: 420,
         }}
       >
-        {lines.length === 0 ? (
-          <p className="text-[12px] text-dim text-center" style={{ marginTop: 80 }}>
-            Логи ещё не получены — нода пришлёт их при следующем heartbeat (≤10 сек)
-          </p>
-        ) : (
-          lines.map((line, i) => (
-            <div
-              key={i}
-              className="text-[11px] leading-relaxed select-text"
-              style={{ fontFamily: 'monospace', color: logColor(line), wordBreak: 'break-all' }}
-            >
-              {line}
-            </div>
-          ))
-        )}
-        <div ref={bottomRef} />
+        {/* Шапка */}
+        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="w-3 h-3 rounded-full" style={{ background: '#ff5f57' }} />
+          <div className="w-3 h-3 rounded-full" style={{ background: '#febc2e' }} />
+          <div className="w-3 h-3 rounded-full" style={{ background: '#28c840' }} />
+          <span className="text-[12px] text-dim ml-2 font-mono">
+            {source === 'panel' ? 'hysteria2-panel' : 'hysteria2 server'}
+          </span>
+          <Terminal className="w-3.5 h-3.5 text-dim ml-auto" />
+        </div>
+
+        {/* Строки */}
+        <div className="overflow-y-auto px-4 py-3" style={{ maxHeight: 480 }}>
+          {lines.length === 0 ? (
+            <p className="text-[13px] font-mono" style={{ color: '#4b5563' }}>
+              {source === 'hysteria' && !isMain
+                ? '— Логи появятся при следующем heartbeat (≤10 сек) —'
+                : '— Нет данных —'}
+            </p>
+          ) : (
+            lines.map((line, i) => (
+              <div
+                key={i}
+                className="text-[12px] font-mono leading-relaxed whitespace-pre-wrap break-all select-text"
+                style={{ color: logColor(line) }}
+              >
+                {line}
+              </div>
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
     </Dialog>
   )
@@ -487,9 +548,10 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
 
 function logColor(line: string): string {
   const l = line.toLowerCase()
-  if (l.includes('error') || l.includes('fatal') || l.includes('ERR')) return '#f87171'
-  if (l.includes('warn')) return '#fbbf24'
-  return 'rgba(255,255,255,0.55)'
+  if (l.includes('error') || l.includes('fatal') || l.includes('ошибк')) return '#f87171'
+  if (l.includes('warn') || l.includes('предупр')) return '#fbbf24'
+  if (l.includes('info') || l.includes('[info]')) return '#94a3b8'
+  return '#6b7280'
 }
 
 // ── InfoRow ────────────────────────────────────────────────────────────────────
