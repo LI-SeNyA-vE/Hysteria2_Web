@@ -14,10 +14,12 @@ type serverDTO struct {
 	ID           uint    `json:"id"`
 	Role         string  `json:"role"`
 	Name         string  `json:"name"`
+	DisplayName  string  `json:"displayName"`
 	PublicIP     string  `json:"publicIp"`
 	PanelURL     string  `json:"panelUrl"`
 	Hy2Port      int     `json:"hy2Port"`
 	Hy2Version   string  `json:"hy2Version"`
+	Hy2Running   bool    `json:"hy2Running"`
 	PanelVersion string  `json:"panelVersion"`
 	CreatedAt    string  `json:"createdAt"`
 	LastSeenAt   *string `json:"lastSeenAt"`
@@ -33,10 +35,12 @@ func toServerDTO(s models.Server) serverDTO {
 		ID:           s.ID,
 		Role:         s.Role,
 		Name:         s.Name,
+		DisplayName:  s.DisplayName,
 		PublicIP:     s.PublicIP,
 		PanelURL:     s.PanelURL,
 		Hy2Port:      s.Hy2Port,
 		Hy2Version:   s.Hy2Version,
+		Hy2Running:   s.Hy2Running,
 		PanelVersion: s.PanelVersion,
 		CreatedAt:    s.CreatedAt.Format(time.RFC3339),
 		LastSeenAt:   lastSeen,

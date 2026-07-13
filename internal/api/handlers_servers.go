@@ -99,6 +99,26 @@ func (s *Server) handleUpdateNodeConfig(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный id")
+		return
+	}
+	var req struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "неверный JSON")
+		return
+	}
+	if err := s.db.Model(&models.Server{}).Where("id = ?", id).Update("display_name", req.DisplayName).Error; err != nil {
+		writeErr(w, http.StatusInternalServerError, "ошибка сохранения")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {

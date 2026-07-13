@@ -16,11 +16,13 @@ type Server struct {
 	ID           uint   `gorm:"primaryKey"`
 	Role         string `gorm:"index"`
 	Name         string `gorm:"uniqueIndex"`
+	DisplayName  string `gorm:"column:display_name"` // пользовательское имя (пусто = Name)
 	PublicIP     string `gorm:"column:public_ip"`
 	PanelURL     string `gorm:"column:panel_url"`
 	Hy2Port      int    `gorm:"column:hy2_port"`
 	Hy2Version   string `gorm:"column:hy2_version"`
-	PanelVersion string `gorm:"column:panel_version"` // текущая версия панели на ноде
+	Hy2Running   bool   `gorm:"column:hy2_running"`  // последнее известное состояние hysteria2
+	PanelVersion string `gorm:"column:panel_version"`
 	CertSHA256   string `gorm:"column:cert_sha256"`
 	// CascadeTarget — имя (Name) ноды node2, через которую этот node1 выходит в интернет.
 	// Пусто = использовать первую доступную node2.

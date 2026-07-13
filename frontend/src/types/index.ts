@@ -4,10 +4,12 @@ export interface Server {
   id: number
   role: ServerRole
   name: string
+  displayName: string
   publicIp: string
   panelUrl: string
   hy2Port: number
   hy2Version: string
+  hy2Running: boolean
   panelVersion: string
   createdAt: string
   lastSeenAt: string | null

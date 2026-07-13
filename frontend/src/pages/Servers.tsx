@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw, Upload } from 'lucide-react'
-import { getServers, getServerLogs, pushNodeUpdate } from '@/api/servers'
+import { Server, ChevronDown, ChevronUp, Copy, Check, ScrollText, RefreshCw, Upload, Pencil } from 'lucide-react'
+import { getServers, getServerLogs, pushNodeUpdate, updateServerName } from '@/api/servers'
 import { getSettings } from '@/api/settings'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ export function Servers() {
 
   const isEmpty = servers.length === 0
   const [connectOpen, setConnectOpen] = useState(isEmpty)
+  const [detailServer, setDetailServer] = useState<ServerType | null>(null)
   const [logsServer, setLogsServer] = useState<ServerType | null>(null)
   const [updateMsg, setUpdateMsg] = useState('')
 
@@ -112,47 +114,158 @@ export function Servers() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {servers.map(server => (
-              <Card key={server.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={ICON_BOX}>
-                        <Server className="w-4 h-4 text-sub" strokeWidth={1.5} />
+            {servers.map(server => {
+              const label = server.displayName || server.name
+              const online = isOnline(server)
+              return (
+                <Card key={server.id}
+                  className="cursor-pointer hover:ring-1 hover:ring-white/10 transition-all"
+                  onClick={() => setDetailServer(server)}
+                >
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between mb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={ICON_BOX}>
+                          <Server className="w-4 h-4 text-sub" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <span className="text-[15px] font-medium text-text">{label}</span>
+                          {server.displayName && (
+                            <p className="text-[11px] text-dim">{server.name}</p>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[15px] font-medium text-text">{server.name}</span>
+                      <Badge variant={ROLE_COLOR[server.role]}>{ROLE_RU[server.role]}</Badge>
                     </div>
-                    <Badge variant={ROLE_COLOR[server.role]}>{ROLE_RU[server.role]}</Badge>
-                  </div>
 
-                  <div className="space-y-3">
-                    <InfoRow label="IP адрес"   value={server.publicIp}      />
-                    <InfoRow label="Порт"        value={`:${server.hy2Port}`} />
-                    <InfoRow label="Hysteria2"   value={server.hy2Version}    />
-                    {server.panelVersion && (
-                      <InfoRow label="Панель" value={server.panelVersion} />
-                    )}
-                    <InfoRow label="Статус"      value={
-                      isOnline(server)
-                        ? <Badge dot variant="success">В сети</Badge>
-                        : <Badge dot variant="danger">Оффлайн</Badge>
-                    } />
-                  </div>
-
-                  <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
-                    <Button variant="outline" size="sm" onClick={() => setLogsServer(server)}>
-                      <ScrollText className="w-3.5 h-3.5" /> Логи hysteria2
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="space-y-3">
+                      <InfoRow label="IP адрес"  value={server.publicIp}      />
+                      <InfoRow label="Порт"       value={`:${server.hy2Port}`} />
+                      <InfoRow label="Hysteria2"  value={
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${server.hy2Running ? 'bg-green-400' : 'bg-slate-500'}`} />
+                          {server.hy2Version || '—'}
+                        </span>
+                      } />
+                      <InfoRow label="Статус"     value={
+                        online
+                          ? <Badge dot variant="success">В сети</Badge>
+                          : <Badge dot variant="danger">Оффлайн</Badge>
+                      } />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
 
+      <ServerDetailDialog
+        server={detailServer}
+        onClose={() => setDetailServer(null)}
+        onOpenLogs={s => { setDetailServer(null); setLogsServer(s) }}
+        onRenamed={() => qc.invalidateQueries({ queryKey: ['servers'] })}
+      />
       <ServerLogsDialog server={logsServer} onClose={() => setLogsServer(null)} />
     </div>
+  )
+}
+
+// ── ServerDetailDialog ────────────────────────────────────────────────────────
+
+function ServerDetailDialog({
+  server, onClose, onOpenLogs, onRenamed,
+}: {
+  server: ServerType | null
+  onClose: () => void
+  onOpenLogs: (s: ServerType) => void
+  onRenamed: () => void
+}) {
+  const qc = useQueryClient()
+  const [editName, setEditName] = useState('')
+  const [nameSaved, setNameSaved] = useState(false)
+
+  useEffect(() => {
+    if (server) setEditName(server.displayName || '')
+  }, [server?.id])
+
+  const renameMut = useMutation({
+    mutationFn: () => updateServerName(server!.id, editName),
+    onSuccess: () => {
+      onRenamed()
+      setNameSaved(true)
+      setTimeout(() => setNameSaved(false), 2000)
+    },
+  })
+
+  if (!server) return null
+
+  const online = isOnline(server)
+
+  return (
+    <Dialog
+      open={!!server}
+      onClose={onClose}
+      title={server.displayName || server.name}
+      description={`${ROLE_RU[server.role]} · ${server.publicIp}`}
+    >
+      <div className="space-y-5">
+
+        {/* Переименование */}
+        <div>
+          <p className="text-[12px] text-dim mb-2">Пользовательское имя</p>
+          <div className="flex gap-2">
+            <Input
+              placeholder={server.name}
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && renameMut.mutate()}
+            />
+            <Button size="sm" loading={renameMut.isPending} onClick={() => renameMut.mutate()}>
+              {nameSaved ? <><Check className="w-3.5 h-3.5" /> Сохранено</> : <><Pencil className="w-3.5 h-3.5" /> Сохранить</>}
+            </Button>
+          </div>
+        </div>
+
+        {/* Статус панели */}
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', boxShadow: '0 0 0 1px rgba(255,255,255,0.07)' }}>
+          <p className="text-[12px] font-medium text-sub mb-3">Состояние</p>
+          <InfoRow label="Панель" value={
+            online
+              ? <Badge dot variant="success">В сети</Badge>
+              : <Badge dot variant="danger">Оффлайн</Badge>
+          } />
+          <InfoRow label="Hysteria2" value={
+            <span className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${server.hy2Running ? 'bg-green-400' : 'bg-slate-500'}`} />
+              <span className="text-[13px]">{server.hy2Running ? 'Работает' : 'Остановлен'}</span>
+            </span>
+          } />
+          {server.hy2Version && <InfoRow label="Версия Hysteria2" value={server.hy2Version} />}
+          {server.panelVersion && <InfoRow label="Версия панели" value={server.panelVersion} />}
+        </div>
+
+        {/* Сетевые параметры */}
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', boxShadow: '0 0 0 1px rgba(255,255,255,0.07)' }}>
+          <p className="text-[12px] font-medium text-sub mb-3">Сеть</p>
+          <InfoRow label="IP адрес" value={server.publicIp} />
+          <InfoRow label="UDP порт" value={`:${server.hy2Port}`} />
+          {server.lastSeenAt && (
+            <InfoRow label="Последний heartbeat" value={
+              <span className="text-[12px]">
+                {new Date(server.lastSeenAt).toLocaleTimeString('ru')}
+              </span>
+            } />
+          )}
+        </div>
+
+        {/* Действия */}
+        <Button variant="outline" size="sm" onClick={() => onOpenLogs(server)}>
+          <ScrollText className="w-3.5 h-3.5" /> Логи Hysteria2
+        </Button>
+      </div>
+    </Dialog>
   )
 }
 

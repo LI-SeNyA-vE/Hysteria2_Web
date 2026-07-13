@@ -50,6 +50,7 @@ func (s *Server) Handler() http.Handler {
 		r.Delete("/api/users/{id}", s.handleDeleteUser)
 
 		r.Get("/api/servers", s.handleListServers)
+		r.Patch("/api/servers/{id}", s.handleUpdateServer)
 		r.Get("/api/servers/{id}/logs", s.handleGetServerLogs)
 		r.Get("/api/servers/{id}/config", s.handleGetNodeConfig)
 		r.Put("/api/servers/{id}/config", s.handleUpdateNodeConfig)

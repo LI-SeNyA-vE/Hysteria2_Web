@@ -74,7 +74,10 @@ func (r *Registry) Heartbeat(req HeartbeatRequest) (DesiredNodeConfig, error) {
 		return DesiredNodeConfig{}, err
 	}
 
-	updates := map[string]any{"last_seen_at": &now}
+	updates := map[string]any{
+		"last_seen_at": &now,
+		"hy2_running":  req.Running,
+	}
 	if req.CertSHA256 != "" && req.CertSHA256 != s.CertSHA256 {
 		updates["cert_sha256"] = req.CertSHA256
 	}

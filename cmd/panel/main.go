@@ -62,7 +62,6 @@ func main() {
 		if firstRunPassword != "" {
 			printFirstRunBanner(cfg.HTTPAddr, firstRunPassword)
 		}
-		registerSelf(d, cfg)
 		reg = cluster.NewRegistry(d)
 	} else {
 		a = auth.NewNodeAuth(cfg.Main.Token)
@@ -81,6 +80,10 @@ func main() {
 			}
 			go mgr.PollTrafficForever(ctx)
 		}
+	}
+
+	if d != nil {
+		registerSelf(d, cfg, mgr)
 	}
 
 	// Для нод (без БД): NodeAgent регистрируется на main и применяет DesiredNodeConfig.
@@ -164,8 +167,12 @@ func main() {
 	}
 }
 
-func registerSelf(d *db.DB, cfg *config.Config) {
+func registerSelf(d *db.DB, cfg *config.Config, mgr *hysteria.Manager) {
 	now := time.Now()
+	hy2Ver := ""
+	if mgr != nil {
+		hy2Ver = mgr.Status().Version
+	}
 	var s models.Server
 	err := d.Where("name = ?", "main").First(&s).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -175,6 +182,7 @@ func registerSelf(d *db.DB, cfg *config.Config) {
 			PublicIP:   cfg.PublicIP,
 			PanelURL:   "http://localhost" + cfg.HTTPAddr,
 			Hy2Port:    cfg.Hy2.Port,
+			Hy2Version: hy2Ver,
 			LastSeenAt: &now,
 		}
 		if err := d.Create(&s).Error; err != nil {
@@ -182,13 +190,17 @@ func registerSelf(d *db.DB, cfg *config.Config) {
 		}
 		return
 	}
-	d.Model(&s).Updates(map[string]any{
+	updates := map[string]any{
 		"role":         cfg.Role,
 		"public_ip":    cfg.PublicIP,
 		"panel_url":    "http://localhost" + cfg.HTTPAddr,
 		"hy2_port":     cfg.Hy2.Port,
 		"last_seen_at": &now,
-	})
+	}
+	if hy2Ver != "" {
+		updates["hy2_version"] = hy2Ver
+	}
+	d.Model(&s).Updates(updates)
 }
 
 func printFirstRunBanner(addr, password string) {
