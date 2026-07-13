@@ -262,7 +262,7 @@ function ServerDetailDialog({
 
         {/* Действия */}
         <Button variant="outline" size="sm" onClick={() => onOpenLogs(server)}>
-          <ScrollText className="w-3.5 h-3.5" /> Логи Hysteria2
+          <ScrollText className="w-3.5 h-3.5" /> Логи
         </Button>
       </div>
     </Dialog>
@@ -474,6 +474,7 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
       onClose={onClose}
       title={`Логи — ${server?.displayName || server?.name || ''}`}
       description="обновляется каждые 5 сек"
+      className="max-w-4xl"
     >
       {/* Табы */}
       {isMain && (
