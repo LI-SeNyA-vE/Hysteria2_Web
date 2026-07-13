@@ -14,7 +14,6 @@ const TABS: { id: Source; label: string }[] = [
 export function Logs() {
   const [source, setSource] = useState<Source>('panel')
   const bottomRef = useRef<HTMLDivElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const { data, isFetching } = useQuery({
     queryKey: ['logs', source],
