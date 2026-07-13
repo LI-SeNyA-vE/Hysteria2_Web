@@ -472,7 +472,7 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
     <Dialog
       open={!!server}
       onClose={onClose}
-      title={`Логи — ${server?.displayName || server?.name ?? ''}`}
+      title={`Логи — ${server?.displayName || server?.name || ''}`}
       description="обновляется каждые 5 сек"
     >
       {/* Табы */}
