@@ -5,6 +5,7 @@ import { getServers, getServerLogs, pushNodeUpdate, updateServerName } from '@/a
 import { getPanelLogs } from '@/api/logs'
 import { getSettings } from '@/api/settings'
 import { Input } from '@/components/ui/input'
+import { LogLine } from '@/components/LogLine'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -530,15 +531,7 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
                 : '— Нет данных —'}
             </p>
           ) : (
-            lines.map((line, i) => (
-              <div
-                key={i}
-                className="text-[12px] font-mono leading-relaxed whitespace-pre-wrap break-all select-text"
-                style={{ color: logColor(line) }}
-              >
-                {line}
-              </div>
-            ))
+            lines.map((line, i) => <LogLine key={i} raw={line} />)
           )}
           <div ref={bottomRef} />
         </div>
@@ -547,13 +540,6 @@ function ServerLogsDialog({ server, onClose }: { server: ServerType | null; onCl
   )
 }
 
-function logColor(line: string): string {
-  const l = line.toLowerCase()
-  if (l.includes('error') || l.includes('fatal') || l.includes('ошибк')) return '#f87171'
-  if (l.includes('warn') || l.includes('предупр')) return '#fbbf24'
-  if (l.includes('info') || l.includes('[info]')) return '#94a3b8'
-  return '#6b7280'
-}
 
 // ── InfoRow ────────────────────────────────────────────────────────────────────
 

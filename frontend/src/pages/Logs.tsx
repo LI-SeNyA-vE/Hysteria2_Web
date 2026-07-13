@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Terminal } from 'lucide-react'
 import { getPanelLogs, getHysteriaLogs } from '@/api/logs'
+import { LogLine } from '@/components/LogLine'
 
 type Source = 'panel' | 'hysteria'
 
@@ -96,27 +97,11 @@ export function Logs() {
                 : '— Логи панели появятся здесь —'}
             </p>
           ) : (
-            lines.map((line, i) => (
-              <div
-                key={i}
-                className="text-[12px] font-mono leading-relaxed whitespace-pre-wrap break-all"
-                style={{ color: lineColor(line) }}
-              >
-                {line}
-              </div>
-            ))
+            lines.map((line, i) => <LogLine key={i} raw={line} />)
           )}
           <div ref={bottomRef} />
         </div>
       </div>
     </div>
   )
-}
-
-function lineColor(line: string): string {
-  const l = line.toLowerCase()
-  if (l.includes('error') || l.includes('fatal') || l.includes('ошибк'))  return '#f87171'
-  if (l.includes('warn')  || l.includes('warning') || l.includes('предупр')) return '#fbbf24'
-  if (l.includes('info')  || l.includes('[info]'))  return '#94a3b8'
-  return '#6b7280'
 }
