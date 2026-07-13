@@ -182,7 +182,6 @@ function ServerDetailDialog({
   onOpenLogs: (s: ServerType) => void
   onRenamed: () => void
 }) {
-  const qc = useQueryClient()
   const [editName, setEditName] = useState('')
   const [nameSaved, setNameSaved] = useState(false)
 
